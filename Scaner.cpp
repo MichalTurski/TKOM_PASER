@@ -16,7 +16,7 @@ Scaner::Scaner(Source &src): src(src) {
     next();
 }
 
-enum ScanerState {
+/*enum ScanerState {
     START,
     AFTER_SLASH,
     COMMENT,
@@ -30,13 +30,263 @@ enum ScanerState {
     IDENT,
     NUMBER,
     STRING
-};
+};*/
 
 Token Scaner::getToken() {
     return curr;
 }
 
 Token Scaner::next() {
+    int c;
+    Token token;
+
+    c = src.getChar();
+    while (isspace(c) || c == '/') {
+        if (isspace(c)) {
+            src.moveForward();
+            c = src.getChar();
+        } else { //Comment or div operator
+            token.begin = src.getTexstPos();
+            src.moveForward();
+            if (src.getChar() == '*') {
+                skipComment();
+            } else {
+                token.type = divOp;
+                token.string = "/";
+                return (token);
+            }
+        }
+    }
+    if (c == EOF) {
+        token.type = eof;
+        token.begin = src.getTexstPos();
+        return (token);
+    }
+    if (isalpha(c)) {
+        return (getIdent());
+    }
+    if (isdigit(c)) {
+        return (getNum());
+    }
+    return (getOperator());
+}
+
+Token Scaner::getIdent() {
+    int c;
+    Token token;
+    std::string curString;
+
+    token.begin = src.getTexstPos();
+    c = src.getChar();
+    while (isalpha(c) || c == '_') {
+        curString += (char)c;
+        src.moveForward();
+        c = src.getChar();
+    }
+
+    token.string = std::move(curString);
+    auto kwTuple = kwMap.find(token.string);
+    if (kwTuple != kwMap.end()){
+        token.type = kwTuple->second;
+    } else {
+        token.type = identifier;
+    }
+}
+
+Token Scaner::getNum() {
+    int c;
+    Token token;
+    std::string curString;
+
+    token.begin = src.getTexstPos();
+    c = src.getChar();
+    if (!isdigit(c)) {
+        throw std::runtime_error("getNum() called on not a number");
+    }
+    if (c == '0') {
+        curString += (char) c;
+        src.moveForward(); //src.getChar() should return not used character
+        token.string = std::move(curString);
+        token.type = number;
+        return (token);
+    }
+    while (isdigit(c)) {
+        curString += (char) c;
+        src.moveForward();
+        c = src.getChar();
+    }
+    token.string = std::move(curString);
+    token.type = number;
+    return (token);
+}
+
+Token Scaner::getOperator() {
+    int c;
+    Token token;
+    std::string curString;
+
+    token.begin = src.getTexstPos();
+    c = src.getChar();
+    curString += (char) c;
+
+    switch (c) {
+        case '!':
+            src.moveForward();
+            if (src.getChar() == '=') {
+                curString += '=';
+                token.type = neqOp;
+                src.moveForward();
+            } else {
+                token.type = negOp;
+            }
+            token.string = std::move(curString);
+            return (token);
+        case '&':
+            src.moveForward();
+            if (src.getChar() != '&') {
+                token.type = NaT;
+            } else {
+                curString += (char) c;
+                token.string = std::move(curString);
+                token.type = andOp;
+                src.moveForward();
+            }
+            return (token);
+        case '|':
+            src.moveForward();
+            if (src.getChar() != '|') {
+                token.type = NaT;
+            } else {
+                curString += (char) c;
+                token.string = std::move(curString);
+                token.type = orOp;
+                src.moveForward();
+            }
+            return (token);
+        case '>':
+            src.moveForward();
+            if ((c = src.getChar()) != '=') {
+                token.type = moreOp;
+            } else {
+                curString += (char) c;
+                token.type = moreEqOp;
+                src.moveForward();
+            }
+            token.string = std::move(curString);
+            return (token);
+        case '<':
+            src.moveForward();
+            if ((c = src.getChar()) != '=') {
+                token.type = lessOp;
+            } else {
+                curString += (char) c;
+                token.type = lessEqOp;
+                src.moveForward();
+            }
+            token.string = std::move(curString);
+            return (token);
+        case '=':
+            src.moveForward();
+            if ((c = src.getChar()) != '=') {
+                token.type = assignOp;
+            } else {
+                curString += (char) c;
+                token.type = eqOp;
+                src.moveForward();
+            }
+            token.string = std::move(curString);
+            return (token);
+        case '+':
+            src.moveForward();
+            token.type = addOp;
+            token.string = std::move(curString);
+            return (token);
+        case '-':
+            src.moveForward();
+            token.type = subOp;
+            token.string = std::move(curString);
+            return (token);
+        case '*':
+            src.moveForward();
+            token.type = multOp;
+            token.string = std::move(curString);
+            return (token);
+        case '/':
+            src.moveForward();
+            token.type = divOp;
+            token.string = std::move(curString);
+            return (token);
+        case '{':
+            src.moveForward();
+            token.type = lBrace;
+            token.string = std::move(curString);
+            return (token);
+        case '}':
+            src.moveForward();
+            token.type = rBrace;
+            token.string = std::move(curString);
+            return (token);
+        case '(':
+            src.moveForward();
+            token.type = lPar;
+            token.string = std::move(curString);
+            return (token);
+        case ')':
+            src.moveForward();
+            token.type = rPar;
+            token.string = std::move(curString);
+            return (token);
+        case ';':
+            src.moveForward();
+            token.type = colon;
+            token.string = std::move(curString);
+            return (token);
+        case ',':
+            src.moveForward();
+            token.type = comma;
+            token.string = std::move(curString);
+            return (token);
+        case '.':
+            src.moveForward();
+            token.type = dot;
+            token.string = std::move(curString);
+            return (token);
+        default:
+            token.type = NaT;
+            return (token);
+    }
+}
+
+void Scaner::skipComment() {
+    int c;
+
+    c = src.getChar();
+    if (c != '*') {
+        throw std::runtime_error("skipComment() called on not an Comment");
+    }
+    do {
+        do {
+            src.moveForward();
+            c = src.getChar();
+            if (c == EOF) {
+                std::cerr << "Comment reached end of file.\n";
+                exit (-1);
+            }
+        } while (c != '*');
+        do {
+            src.moveForward();
+            c = src.getChar();
+            if (c == EOF) {
+                std::cerr << "Comment reached end of file.\n";
+                exit (-1);
+            }
+        } while (c == '*');
+    } while (c != '/');
+    src.moveForward(); //src.getChar() should return not used character
+}
+
+
+/*Token Scaner::next() {
     int c;
     Token token;
     ScanerState state = START;
@@ -306,4 +556,4 @@ out:
     }
     curr = token;
     return token;
-}
+}*/

@@ -47,7 +47,7 @@ struct Token {
     std::string string;
     TokenType type;
     TextPos begin;
-    TextPos end;
+//    TextPos end;
 };
 
 class Scaner {
@@ -56,8 +56,12 @@ private:
     std::map<std::string, enum TokenType> kwMap;
     Token curr;
 
+    Token getIdent();
+    Token getNum();
+    Token getOperator();
+    void skipComment();
 public:
-    Scaner(Source& src);
+    explicit Scaner(Source& src);
     Token next();
     Token getToken();
 };
