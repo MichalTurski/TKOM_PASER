@@ -54,9 +54,11 @@ class Scaner {
 private:
     Source& src;
     std::map<std::string, enum TokenType> kwMap;
+    Token curr;
 
 public:
     Scaner(Source& src);
+    Token next();
     Token getToken();
 };
 

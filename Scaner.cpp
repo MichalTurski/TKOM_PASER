@@ -12,6 +12,8 @@ Scaner::Scaner(Source &src): src(src) {
     kwMap.insert(std::make_pair("do", doKw));
     kwMap.insert(std::make_pair("if", ifKw));
     kwMap.insert(std::make_pair("return", returnKw));
+    getToken();
+    next();
 }
 
 enum ScanerState {
@@ -31,6 +33,10 @@ enum ScanerState {
 };
 
 Token Scaner::getToken() {
+    return curr;
+}
+
+Token Scaner::next() {
     int c;
     Token token;
     ScanerState state = START;
@@ -257,7 +263,7 @@ Token Scaner::getToken() {
                     break;
                 } else {
                     token.type = identifier;
-                    goto nonconsume_out; //Don't move forward, current character might be part of next token
+                    goto nonconsume_out; //Don't next forward, current character might be part of move token
                 }
             case (NUMBER):
                 if (isdigit(c)) {
@@ -265,10 +271,10 @@ Token Scaner::getToken() {
                     break;
                 } else {
                     token.type = number;
-                    goto nonconsume_out; //Don't move forward, current character might be part of next token
+                    goto nonconsume_out; //Don't next forward, current character might be part of move token
                 }
             case (STRING):
-                if (c == '"') {//This is specific case, we want to move src forward, but skip '"'
+                if (c == '"') {//This is specific case, we want to next src forward, but skip '"'
                     token.type = string;
                     src.moveForward();
                     goto out;
@@ -298,5 +304,6 @@ out:
             token.type = kwTuple->second;
         }
     }
+    curr = token;
     return token;
 }
