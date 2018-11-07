@@ -15,6 +15,7 @@ enum TokenType {
     doKw,
     ifKw,
     returnKw,
+    functionKw,
     identifier,
     negOp,
     andOp,
@@ -55,15 +56,18 @@ private:
     Source& src;
     std::map<std::string, enum TokenType> kwMap;
     Token curr;
+    Token future;
 
     Token getIdent();
     Token getNum();
     Token getOperator();
+    Token getString();
     void skipComment();
 public:
     explicit Scaner(Source& src);
-    Token next();
-    Token getToken();
+    Token *next();
+    Token *getFuture();
+    Token *getCurr();
 };
 
 #endif //SCANER_SCANER_H
