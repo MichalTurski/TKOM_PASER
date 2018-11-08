@@ -93,8 +93,17 @@ void LogicExpr::printValue(int setw) const {
 void  LogicExpr::negate() {
     negated = !negated;
 }
+void FunctionRef::printValue(int setw) const {
+    std::cout << std::string(setw, ' ') << "Node type = FunctionRef" << std::endl;
+    std::cout << std::string(setw, ' ') << "function name = " << name << std::endl;
+}
+void MethodRef::printValue(int setw) const {
+    std::cout << std::string(setw, ' ') << "Node type = MethodRef" << std::endl;
+    std::cout << std::string(setw, ' ') << "class name = " << group << std::endl;
+    std::cout << std::string(setw, ' ') << "method name = " << method << std::endl;
+}
 void Assignment::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = Assigment" << std::endl;
+    std::cout << std::string(setw, ' ') << "Node type = Assignment" << std::endl;
     std::cout << std::string(setw, ' ') << "lValue = " << lVal << std::endl;
     std::cout << std::string(setw, ' ') << "rValue {" << std::endl;
     rVal->printValue(setw + 4);

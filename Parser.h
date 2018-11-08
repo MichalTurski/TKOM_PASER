@@ -41,14 +41,17 @@ class Parser {
     std::unique_ptr<AddExpr> parseAddExprCmn(std::unique_ptr<MultExpr> multExpr);
     std::unique_ptr<MultExpr> parseMultExpr();
     std::unique_ptr<MultExpr> parseMultExpr(std::string &name);
-    std::unique_ptr<MultExpr> parseMultExprCmn(std::unique_ptr<Argument> argument);
-    std::unique_ptr<Argument> parseArgument();
-    std::unique_ptr<Argument> parseArgument(std::string &name);
+    std::unique_ptr<MultExpr> parseMultExprCmn(std::unique_ptr<ExprArgument> argument);
+    std::unique_ptr<ExprArgument> parseExprArgument();
+    std::unique_ptr<ExprArgument> parseExprArgument(std::string &name);
     std::unique_ptr<Variable> parseVariable(std::string &name);
     std::unique_ptr<Number> parseNumber();
     std::unique_ptr<FunctionCall> parseFunctionCall(std::string &name);
     std::unique_ptr<MethodCall> parseMethodCall(std::string &name);
-    std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>> parseCallArguments();
+    std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> parseCallArguments();
+    std::unique_ptr<FunArgument> parseFunArgument();
+    std::unique_ptr<FunctionRef> parseFunReference(std::string &name);
+    std::unique_ptr<MethodRef> parseMethodReference(std::string &name);
     std::unique_ptr<String> parseString();
 public:
     Parser(Source &src, Scaner &scan): scan(scan), src(src) {}

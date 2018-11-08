@@ -132,6 +132,7 @@ Token Scaner::getOperator() {
             src.moveForward();
             if (src.getChar() != '&') {
                 token.string =  std::move(curString);
+                token.type = refOp;
                 return (token);
             } else {
                 curString += (char) c;

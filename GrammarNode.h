@@ -11,7 +11,7 @@
 
 #include "Scaner.h"
 
-class ParserNode {
+class Node {
 public:
     virtual void printValue(int setw) const = 0;
 };
@@ -19,12 +19,17 @@ public:
 class InstructionSet;
 class LogicExpr;
 
-class Argument: public virtual ParserNode {
+class ExprArgument: public virtual Node {
 public:
     virtual void printValue(int setw) const = 0;
 };
 
-class Variable: public Argument {
+class FunArgument: public virtual Node {
+public:
+    virtual void printValue(int setw) const = 0;
+};
+
+class Variable: public ExprArgument {
 private:
     std::string name;
 public:
@@ -32,7 +37,7 @@ public:
     void printValue(int setw) const override;
 };
 
-class Number: public Argument {
+class Number: public ExprArgument {
 private:
     int value;
 public:
@@ -40,18 +45,18 @@ public:
     void printValue(int setw) const override;
 };
 
-class FunctionCall: public Argument {
+class FunctionCall: public ExprArgument {
 private:
     std::string name;
-    std::list<std::unique_ptr<LogicExpr>> arguments;
+    std::list<std::unique_ptr<FunArgument>> arguments;
 public:
-    FunctionCall(std::string &&name, std::list<std::unique_ptr<LogicExpr>> &&arguments):
+    FunctionCall(std::string &&name, std::list<std::unique_ptr<FunArgument>> &&arguments):
             name(name),
             arguments(std::move(arguments)) {}
     void printValue(int setw) const override;
 };
 
-class String: public Argument {
+class String: public ExprArgument {
 private:
     std::string value;
 public:
@@ -59,31 +64,31 @@ public:
     void printValue(int setw) const override;
 };
 
-class MethodCall: public Argument {
+class MethodCall: public ExprArgument {
 private:
     std::string object;
     std::string method;
-    std::list<std::unique_ptr<LogicExpr>> arguments;
+    std::list<std::unique_ptr<FunArgument>> arguments;
 public:
-    MethodCall(std::string &&object, std::string &&method, std::list<std::unique_ptr<LogicExpr>> &&args):
+    MethodCall(std::string &&object, std::string &&method, std::list<std::unique_ptr<FunArgument>> &&args):
             object(std::move(object)),
             method(std::move(method)),
             arguments(std::move(args)) {}
     void printValue(int setw) const override;
 };
 
-class MultExpr: public ParserNode {
+class MultExpr: public Node {
 private:
-    std::list<std::unique_ptr<Argument>> exprList;
+    std::list<std::unique_ptr<ExprArgument>> exprList;
     std::list<TokenType> operators;
 public:
-    MultExpr(std::list<std::unique_ptr<Argument>> &&exprList,
+    MultExpr(std::list<std::unique_ptr<ExprArgument>> &&exprList,
              std::list<TokenType> &&operators): exprList(std::move(exprList)),
                                                 operators(std::move(operators)){}
     void printValue(int setw) const override;
 };
 
-class AddExpr: public ParserNode {
+class AddExpr: public Node {
 private:
     std::list<std::unique_ptr<MultExpr>> exprList;
     std::list<TokenType> operators;
@@ -94,7 +99,7 @@ public:
     void printValue(int setw) const override;
 };
 
-class CmpExpr: public ParserNode {
+class CmpExpr: public Node {
 private:
     std::list<std::unique_ptr<AddExpr>> exprList;
     std::list<TokenType> operators;
@@ -105,11 +110,11 @@ public:
     void printValue(int setw) const override;
 };
 
-class Statement: public virtual ParserNode {};
+class Statement: public virtual Node {};
 
 class Instruction: public virtual Statement {};
 
-class LogicExpr: public Instruction, public Argument {
+class LogicExpr: public Instruction, public ExprArgument, public FunArgument {
 private:
     bool negated;
     std::list<std::unique_ptr<CmpExpr>> exprList;
@@ -121,6 +126,25 @@ public:
                                                  operators(operators){}
     void printValue(int setw) const override;
     void negate();
+};
+
+class FunctionRef: public FunArgument {
+private:
+    std::string name;
+public:
+    explicit FunctionRef(std::string &&name): name(std::move(name)){}
+    void printValue(int setw) const override;
+};
+
+class MethodRef: public FunArgument {
+private:
+    std::string group;
+    std::string method;
+public:
+    MethodRef(std::string &&group, std::string &&method):
+            group(std::move(group)),
+            method(std::move(method)){}
+    void printValue(int setw) const override;
 };
 
 class Assignment: public Instruction {
@@ -180,7 +204,7 @@ public:
     void printValue(int setw) const override;
 };
 
-class InstructionSet:public ParserNode {
+class InstructionSet:public Node {
 private:
     std::list<std::unique_ptr<Statement>> statements;
 public:
@@ -190,7 +214,7 @@ public:
     void printValue(int setw) const override;
 };
 
-class ArgumentPair: public ParserNode {
+class ArgumentPair: public Node {
 private:
     std::string type;
     std::string name;
@@ -201,7 +225,7 @@ public:
     void printValue(int setw) const override;
 };
 
-class FunctionDefinition: public ParserNode {
+class FunctionDefinition: public Node {
 private:
     std::string name;
     std::unique_ptr<std::list<std::unique_ptr<ArgumentPair>>> argumentsList;
@@ -216,7 +240,7 @@ public:
     void printValue(int setw) const override;
 };
 
-class GroupDefinition: public ParserNode {
+class GroupDefinition: public Node {
 private:
     std::string name;
     std::list<std::unique_ptr<VariableDefinition>> fieldsList;
@@ -230,7 +254,7 @@ public:
     void printValue(int setw) const override;
 };
 
-class Program: public ParserNode {
+class Program: public Node {
     std::unique_ptr<InstructionSet> instructionSet;
     std::list<std::unique_ptr<FunctionDefinition>> functions;
     std::list<std::unique_ptr<GroupDefinition>> groups;

@@ -555,23 +555,23 @@ std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multE
 }
 
 std::unique_ptr<MultExpr> Parser::parseMultExpr() {
-    std::unique_ptr<Argument> argument;
-    if (argument = parseArgument()) {
+    std::unique_ptr<ExprArgument> argument;
+    if (argument = parseExprArgument()) {
         return parseMultExprCmn(std::move(argument));
     }
     return nullptr;
 }
 
 std::unique_ptr<MultExpr> Parser::parseMultExpr(std::string &name) {
-    std::unique_ptr<Argument> argument;
-    if (argument = parseArgument(name)) {
+    std::unique_ptr<ExprArgument> argument;
+    if (argument = parseExprArgument(name)) {
         return parseMultExprCmn(std::move(argument));
     }
     return nullptr;
 }
 
-std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<Argument> argument) {
-    std::list<std::unique_ptr<Argument>> exprList;
+std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<ExprArgument> argument) {
+    std::list<std::unique_ptr<ExprArgument>> exprList;
     std::list<TokenType> operators;
     Token *token;
 
@@ -580,7 +580,7 @@ std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<Argument> arg
     while (token->type == multOp || token->type == divOp) {
         operators.push_back(token->type);
         scan.next();
-        if (!(argument = std::move(parseArgument()))){
+        if (!(argument = std::move(parseExprArgument()))){
             token = scan.getCurr();
             throw std::runtime_error(*errString(token->begin, "argument", token->string));
         }
@@ -590,15 +590,15 @@ std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<Argument> arg
     return std::make_unique<MultExpr> (std::move(exprList), std::move(operators));
 }
 
-std::unique_ptr<Argument> Parser::parseArgument() {
-    std::unique_ptr<Argument> argument;
+std::unique_ptr<ExprArgument> Parser::parseExprArgument() {
+    std::unique_ptr<ExprArgument> argument;
     std::string name;
     Token *token = scan.getCurr();
     switch (token->type) {
         case identifier:
             name = std::move(token->string);
             scan.next();
-            return parseArgument(name);
+            return parseExprArgument(name);
         case number:
             return parseNumber();
         case string:
@@ -620,7 +620,7 @@ std::unique_ptr<Argument> Parser::parseArgument() {
     }
 }
 
-std::unique_ptr<Argument> Parser::parseArgument(std::string &name) {
+std::unique_ptr<ExprArgument> Parser::parseExprArgument(std::string &name) {
     Token *token;
     token = scan.getCurr();
     switch (token->type) {
@@ -647,8 +647,8 @@ std::unique_ptr<Number> Parser::parseNumber() {
 }
 
 std::unique_ptr<FunctionCall> Parser::parseFunctionCall(std::string &name) {
-    std::list<std::unique_ptr<LogicExpr>> argumentsList;
-    std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>> argumentsListPtr;
+    std::list<std::unique_ptr<FunArgument>> argumentsList;
+    std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> argumentsListPtr;
     Token *token;
     token = scan.getCurr();
     if (argumentsListPtr = parseCallArguments()) {
@@ -660,8 +660,8 @@ std::unique_ptr<FunctionCall> Parser::parseFunctionCall(std::string &name) {
 
 std::unique_ptr<MethodCall> Parser::parseMethodCall(std::string &name) {
     std::unique_ptr<FunctionCall> functionCall;
-    std::list<std::unique_ptr<LogicExpr>> argumentsList;
-    std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>> argumentsListPtr;
+    std::list<std::unique_ptr<FunArgument>> argumentsList;
+    std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> argumentsListPtr;
     std::string methodName;
     Token *token;
     token = scan.getCurr();
@@ -684,41 +684,83 @@ std::unique_ptr<MethodCall> Parser::parseMethodCall(std::string &name) {
     return nullptr;
 }
 
-std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>> Parser::parseCallArguments() {
+std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> Parser::parseCallArguments() {
     Token *token;
-    std::unique_ptr<LogicExpr> argument;
-    std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>>
-            argumentsList(new(std::list<std::unique_ptr<LogicExpr>>));
+    std::unique_ptr<FunArgument> argument;
+    std::unique_ptr<std::list<std::unique_ptr<FunArgument>>>
+            argumentsList(new(std::list<std::unique_ptr<FunArgument>>));
 
     token = scan.getCurr();
     if (token->type == lPar) {
         token = scan.next();
         if (token->type != rPar) {
-            if (argument = parseLogicExpr()) {
+            if (argument = parseFunArgument()) {
                 argumentsList->push_back(std::move(argument));
                 token = scan.getCurr();
                 while (token->type != rPar) {
                     if (token->type == comma) {
                         scan.next();
-                        if (argument = parseLogicExpr()) {
+                        if (argument = parseFunArgument()) {
                             argumentsList->push_back(std::move(argument));
                             token = scan.getCurr();
                         } else {
                             token = scan.getCurr();
                             throw std::runtime_error(*errString
-                                    (token->begin, "logic expression", token->string));
+                                    (token->begin, "logic expression or reference", token->string));
                         }
                     } else {
-                        throw std::runtime_error(*errString(
-                                token->begin, ",", token->string));
+                        throw std::runtime_error(*errString(token->begin, ",", token->string));
                     }
                 }
             } else {
-                throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
+                throw std::runtime_error(*errString(token->begin, "logic expression or reference",
+                                                    token->string));
             }
         }
         scan.next();
         return argumentsList;
+    }
+    return nullptr;
+}
+
+std::unique_ptr<FunArgument> Parser::parseFunArgument() {
+    std::string name;
+    std::unique_ptr<FunArgument> argument;
+    Token *token = scan.getCurr();
+    switch (token->type) {
+        case refOp:
+            token = scan.next();
+            if (token->type == identifier) {
+                name = std::move(token->string);
+                scan.next();
+                if (!(argument = parseMethodReference(name))) {
+                    if (!(argument = parseFunReference(name))) {
+                        throw std::runtime_error(*errString(token->begin, "reference", token->string));
+                    }
+                }
+                return argument;
+            }
+            throw std::runtime_error(*errString(token->begin, "identifier", token->string));
+        default:
+            return parseLogicExpr();
+    }
+}
+
+std::unique_ptr<FunctionRef> Parser::parseFunReference(std::string &name) {
+    return std::make_unique<FunctionRef>(std::move(name));
+}
+
+std::unique_ptr<MethodRef> Parser::parseMethodReference(std::string &name) {
+    std::string method;
+    Token *token = scan.getCurr();
+    if (token->type == dot) {
+        token = scan.next();
+        if (token->type == identifier) {
+            method = std::move(token->string);
+            scan.next();
+            return std::make_unique<MethodRef>(std::move(name), std::move(method));
+        }
+        throw std::runtime_error(*errString(token->begin, "identifier", token->string));
     }
     return nullptr;
 }
