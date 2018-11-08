@@ -22,13 +22,19 @@ std::unique_ptr<Program> Parser::parseProgram() {
     std::list<std::unique_ptr<FunctionDefinition>> functionDefinitions;
     std::unique_ptr<FunctionDefinition> funDef;
     std::unique_ptr<InstructionSet> instructionSet;
+    std::list<std::unique_ptr<GroupDefinition>> groupsDefinitions;
+    std::unique_ptr<GroupDefinition> groupDef;
     while (funDef = std::move(parseFunctionDefinition())) {
         functionDefinitions.emplace_back(std::move(funDef));
+    }
+    while (groupDef = parseGroupDefinition()) {
+        groupsDefinitions.emplace_back(std::move(groupDef));
     }
     if (!(instructionSet = parseInstructionSet())) {
         return (nullptr);
     } else {
-        return (std::make_unique<Program>(std::move(functionDefinitions), std::move(instructionSet)));
+        return (std::make_unique<Program>(std::move(functionDefinitions), std::move(groupsDefinitions),
+                                          std::move(instructionSet)));
     }
 }
 
@@ -74,6 +80,48 @@ std::unique_ptr<FunctionDefinition> Parser::parseFunctionDefinition() {
     return nullptr;
 }
 
+std::unique_ptr<GroupDefinition> Parser::parseGroupDefinition() {
+    Token *token;
+    std::string name;
+    std::unique_ptr<VariableDefinition> varDef;
+    std::list<std::unique_ptr<VariableDefinition>> varDefinitions;
+    std::unique_ptr<FunctionDefinition> methodDef;
+    std::list<std::unique_ptr<FunctionDefinition>> methodDefinitions;
+
+    token = scan.getCurr();
+    if (token->type == groupKw) {
+        token = scan.next();
+        if (token->type == identifier){
+            name = std::move(token->string);
+            token = scan.next();
+            if (token->type == lBrace) {
+                token = scan.next();
+                while (varDef = parseVariableDefinition()) {
+                    varDefinitions.emplace_back(std::move(varDef));
+                    token = scan.getCurr();
+                    if (token->type != colon) {
+                        throw std::runtime_error(*errString(token->begin, ";", token->string));
+                    }
+                    scan.next();
+                }
+                while (methodDef = parseFunctionDefinition()) {
+                    methodDefinitions.emplace_back(std::move(methodDef));
+                }
+                token = scan.getCurr();
+                if (token->type == rBrace) {
+                    scan.next();
+                    return std::make_unique<GroupDefinition>(std::move(name), std::move(varDefinitions),
+                            std::move(methodDefinitions));
+                }
+                throw std::runtime_error(*errString(token->begin, "}", token->string));
+            }
+            throw std::runtime_error(*errString(token->begin, "{", token->string));
+        }
+        throw std::runtime_error(*errString(token->begin, "group name", token->string));
+    }
+    return nullptr;
+}
+
 std::unique_ptr<std::list<std::unique_ptr<ArgumentPair>>> Parser::parseArgumentsList() {
     std::unique_ptr<std::list<std::unique_ptr<ArgumentPair>>>
             argumentsList(new (std::list<std::unique_ptr<ArgumentPair>>));
@@ -100,12 +148,12 @@ std::unique_ptr<std::list<std::unique_ptr<ArgumentPair>>> Parser::parseArguments
                                 *errString(token->begin, "comma or )", token->string));
                     }
                 }
-                scan.next();
             } else {
                 throw std::runtime_error(
                         *errString(token->begin, "argument pair", token->string));
             }
         }
+        scan.next();
         return argumentsList;
     } else {
         return nullptr;
@@ -300,86 +348,123 @@ std::unique_ptr<ReturnStatement> Parser::parseReturnStatement() {
 
 std::unique_ptr<Instruction> Parser::parseInstruction() {
     Token *token;
+    std::string name;
     std::unique_ptr<Instruction> instruction;
 
-    if (!(instruction = std::move(parseVariableDefinition()))) {
-        if (!(instruction = std::move(parseAssignment()))) {
-            if (!(instruction = std::move(parseLogicExpr()))) {
-                token = scan.getCurr();
-                throw std::runtime_error
-                        (*errString(token->begin, "operator, ( or identifier", token->string));
+    token = scan.getCurr();
+    if (token->type ==  identifier) {
+        name = std::move(token->string);
+        scan.next();
+        if (!(instruction = std::move(parseVariableDefinition(name)))) {
+            if (!(instruction = std::move(parseAssignment(name)))) {
+                if (!(instruction = std::move(parseLogicExpr(name)))) {
+                    token = scan.getCurr();
+                    throw std::runtime_error
+                            (*errString(token->begin, "operator, ( or identifier", token->string));
+                }
             }
         }
+        token = scan.getCurr();
+        if (token->type != colon) {
+            throw std::runtime_error(*errString(token->begin, ";", token->string));
+        }
+        scan.next();
+        return instruction;
     }
-    token = scan.getCurr();
-    if (token->type != colon) {
-        throw std::runtime_error(*errString(token->begin, ";", token->string));
+    if (instruction = parseLogicExpr()) {
+        return instruction;
     }
-    scan.next();
-    return instruction;
+    return nullptr;
 }
 
-std::unique_ptr<Assignment> Parser::parseAssignment() {
+std::unique_ptr<Assignment> Parser::parseAssignment(std::string &name) {
     std::string lVal;
     std::unique_ptr<LogicExpr> rVal;
-    Token *token, *next;
+    Token *token;
     token = scan.getCurr();
-    if (token->type == identifier) {
-        next = scan.getFuture();
-        if (next->type == assignOp) {
-            lVal = std::move(token->string);
-            scan.next();
-            token = scan.next();
-            if (rVal = std::move(parseLogicExpr())) {
-                return std::make_unique<Assignment>(std::move(lVal), std::move(rVal));
-            } else {
-                throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
-            }
+    if (token->type == assignOp) {
+        lVal = std::move(name);
+        token = scan.next();
+        if (rVal = std::move(parseLogicExpr())) {
+            return std::make_unique<Assignment>(std::move(lVal), std::move(rVal));
+        } else {
+            throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
         }
     }
     return nullptr;
 }
 
 std::unique_ptr<VariableDefinition> Parser::parseVariableDefinition() {
-    std::string type, name, reference;
-    Token *token, *next;
+    std::string type, varName, reference;
+    Token *token;
     token = scan.getCurr();
     if (token->type == identifier) {
-        next = scan.getFuture();
-        if (next->type == identifier) {
-            type = std::move(token->string);
-            name = std::move(next->string);
-            scan.next();
+        type = std::move(token->string);
+        token = scan.next();
+        if (token->type == identifier) {
+            varName = std::move(token->string);
             token = scan.next();
             if (token->type == string) {
                 reference = std::move(token->string);
                 scan.next();
             }
             return std::make_unique<VariableDefinition>
-                    (std::move(type), std::move(name), std::move(reference));
+                    (std::move(type), std::move(varName), std::move(reference));
         }
+        throw std::runtime_error(*errString(token->begin, "variable name", token->string));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<VariableDefinition> Parser::parseVariableDefinition(std::string &name) {
+    std::string varName, reference;
+    Token *token;
+    token = scan.getCurr();
+    if (token->type == identifier) {
+        varName = std::move(token->string);
+        token = scan.next();
+        if (token->type == string) {
+            reference = std::move(token->string);
+            scan.next();
+        }
+        return std::make_unique<VariableDefinition>
+                (std::move(name), std::move(varName), std::move(reference));
     }
     return nullptr;
 }
 
 std::unique_ptr<LogicExpr> Parser::parseLogicExpr() {
+    std::string name;
     bool negated;
-    std::unique_ptr<CmpExpr> cmpExpr;
-    std::list<std::unique_ptr<CmpExpr>> exprList;
-    std::list<TokenType> operators;
     Token *token = scan.getCurr();
+    std::unique_ptr<LogicExpr> logicExpr;
+    std::unique_ptr<CmpExpr> cmpExpr;
     if (token->type == negOp) {
         negated = true;
-        token = scan.next();
-        if (!(cmpExpr = std::move(parseCmpExpr()))) {
-            throw std::runtime_error(*errString(token->begin, "operator", token->string));
-        }
-    } else {
-        negated = false;
-        if (!(cmpExpr = parseCmpExpr())) {
-            return nullptr;
-        }
+        scan.next();
     }
+    if (cmpExpr = parseCmpExpr()) {
+        logicExpr = parseLogicExprCmn(std::move(cmpExpr));
+        if (negated) {
+            logicExpr->negate();
+        }
+        return logicExpr;
+    }
+    return nullptr;
+}
+
+std::unique_ptr<LogicExpr> Parser::parseLogicExpr(std::string &name) {
+    std::unique_ptr<CmpExpr> cmpExpr;
+    Token *token;
+    if (cmpExpr = parseCmpExpr(name)) {
+        return parseLogicExprCmn(std::move(cmpExpr));
+    }
+    return nullptr;
+}
+std::unique_ptr<LogicExpr> Parser::parseLogicExprCmn(std::unique_ptr<CmpExpr> cmpExpr) {
+    std::list<std::unique_ptr<CmpExpr>> exprList;
+    std::list<TokenType> operators;
+    Token *token;
     exprList.push_back(std::move(cmpExpr));
     token = scan.getCurr();
     while (token->type == orOp || token->type == andOp) {
@@ -387,256 +472,169 @@ std::unique_ptr<LogicExpr> Parser::parseLogicExpr() {
         scan.next();
         if (!(cmpExpr = std::move(parseCmpExpr()))) {
             token = scan.getCurr();
-            throw std::runtime_error(*errString(token->begin, "operator", token->string));
+            throw std::runtime_error(*errString(token->begin, "comparison expression", token->string));
         }
         exprList.push_back(std::move(cmpExpr));
         token = scan.getCurr();
     }
-    return std::make_unique<LogicExpr>(negated, std::move(exprList), std::move(operators));
+    return std::make_unique<LogicExpr>(false, std::move(exprList), std::move(operators));
+
 }
 
 std::unique_ptr<CmpExpr> Parser::parseCmpExpr() {
     std::unique_ptr<AddExpr> addExpr;
+    if (addExpr = parseAddExpr()) {
+        return parseCmpExprCmn(std::move(addExpr));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<CmpExpr> Parser::parseCmpExpr(std::string &name) {
+    std::unique_ptr<AddExpr> addExpr;
+    if (addExpr = parseAddExpr(name)) {
+        return parseCmpExprCmn(std::move(addExpr));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<CmpExpr> Parser::parseCmpExprCmn(std::unique_ptr<AddExpr> addExpr) {
     std::list<std::unique_ptr<AddExpr>> exprList;
     std::list<TokenType> operators;
     Token *token;
 
-    if (addExpr = std::move(parseAddExpr())) {
+    exprList.push_back(std::move(addExpr));
+    token = scan.getCurr();
+    while (token->type == moreOp || token->type == lessOp || token->type == eqOp || token->type == negOp ||
+           token->type == moreEqOp || token->type == lessEqOp ){
+        operators.push_back(token->type);
+        scan.next();
+        if (!(addExpr = std::move(parseAddExpr()))){
+            token = scan.getCurr();
+            throw std::runtime_error(*errString(token->begin, "operator", token->string));
+        }
         exprList.push_back(std::move(addExpr));
         token = scan.getCurr();
-        while (token->type == moreOp || token->type == lessOp || token->type == eqOp || token->type == negOp ||
-               token->type == moreEqOp || token->type == lessEqOp ){
-            operators.push_back(token->type);
-            scan.next();
-            if (!(addExpr = std::move(parseAddExpr()))){
-                token = scan.getCurr();
-                throw std::runtime_error(*errString(token->begin, "operator", token->string));
-            }
-            exprList.push_back(std::move(addExpr));
-            token = scan.getCurr();
-        }
-        return std::make_unique<CmpExpr> (std::move(exprList), std::move(operators));
     }
-    return nullptr;
+    return std::make_unique<CmpExpr> (std::move(exprList), std::move(operators));
 }
 
 std::unique_ptr<AddExpr> Parser::parseAddExpr() {
     std::unique_ptr<MultExpr> multExpr;
+    if (multExpr = parseMultExpr()) {
+        return parseAddExprCmn(std::move(multExpr));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<AddExpr> Parser::parseAddExpr(std::string &name) {
+    std::unique_ptr<MultExpr> multExpr;
+    if (multExpr = parseMultExpr(name)) {
+        return parseAddExprCmn(std::move(multExpr));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multExpr) {
     std::list<std::unique_ptr<MultExpr>> exprList;
     std::list<TokenType> operators;
     Token *token;
 
-    if (multExpr = std::move(parseMultExpr())) {
+    exprList.push_back(std::move(multExpr));
+    token = scan.getCurr();
+    while (token->type == addOp || token->type == subOp) {
+        operators.push_back(token->type);
+        scan.next();
+        if (!(multExpr = std::move(parseMultExpr()))){
+            token = scan.getCurr();
+            throw std::runtime_error(*errString(token->begin, "multiplication expression", token->string));
+        }
         exprList.push_back(std::move(multExpr));
         token = scan.getCurr();
-        while (token->type == addOp || token->type == subOp) {
-            operators.push_back(token->type);
-            scan.next();
-            if (!(multExpr = std::move(parseMultExpr()))){
-                token = scan.getCurr();
-                throw std::runtime_error(*errString(token->begin, "operator", token->string));
-            }
-            exprList.push_back(std::move(multExpr));
-            token = scan.getCurr();
-        }
-        return std::make_unique<AddExpr> (std::move(exprList), std::move(operators));
     }
-    return nullptr;
+    return std::make_unique<AddExpr> (std::move(exprList), std::move(operators));
 }
 
 std::unique_ptr<MultExpr> Parser::parseMultExpr() {
     std::unique_ptr<Argument> argument;
+    if (argument = parseArgument()) {
+        return parseMultExprCmn(std::move(argument));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<MultExpr> Parser::parseMultExpr(std::string &name) {
+    std::unique_ptr<Argument> argument;
+    if (argument = parseArgument(name)) {
+        return parseMultExprCmn(std::move(argument));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<Argument> argument) {
     std::list<std::unique_ptr<Argument>> exprList;
     std::list<TokenType> operators;
     Token *token;
 
-    if (argument = std::move(parseArgument())) {
+    exprList.push_back(std::move(argument));
+    token = scan.getCurr();
+    while (token->type == multOp || token->type == divOp) {
+        operators.push_back(token->type);
+        scan.next();
+        if (!(argument = std::move(parseArgument()))){
+            token = scan.getCurr();
+            throw std::runtime_error(*errString(token->begin, "argument", token->string));
+        }
         exprList.push_back(std::move(argument));
         token = scan.getCurr();
-        while (token->type == multOp || token->type == divOp) {
-            operators.push_back(token->type);
-            scan.next();
-            if (!(argument = std::move(parseArgument()))){
-                token = scan.getCurr();
-                throw std::runtime_error(*errString(token->begin, "argument", token->string));
-            }
-            exprList.push_back(std::move(argument));
-            token = scan.getCurr();
-        }
-        return std::make_unique<MultExpr> (std::move(exprList), std::move(operators));
     }
-    return nullptr;
+    return std::make_unique<MultExpr> (std::move(exprList), std::move(operators));
 }
 
 std::unique_ptr<Argument> Parser::parseArgument() {
-    Token *token;
     std::unique_ptr<Argument> argument;
-    if (!(argument = std::move(parseFunctionCall()))) {
-        if (!(argument = std::move(parseMethodCall()))) {
-            if (!(argument = std::move(parseVariable()))) {
-                if (!(argument = std::move(parseNumber()))) {
-                    if (!(argument = std::move(parseString()))) {
-                        token = scan.getCurr();
-                        if (token->type == lPar) {
-                            token = scan.next();
-                            if (argument = std::move(parseLogicExpr())) {
-                                if (scan.getCurr()->type != rPar) {
-                                    throw std::runtime_error(*errString(token->begin, ")", token->string));
-                                }
-                                scan.next();
-                            } else {
-                                throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
-                            }
-                        } else {
-                            return nullptr;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return argument;
-}
-
-std::unique_ptr<Variable> Parser::parseVariable() {
     std::string name;
-    Token *token = scan.getCurr();
-    if (token->type == identifier) {
-        name = std::move(token->string);
-        scan.next();
-        return std::make_unique<Variable>(std::move(name));
-    }
-    return nullptr;
-}
-
-std::unique_ptr<Number> Parser::parseNumber() {
-    Token *token = scan.getCurr();
-    if (token->type == number) {
-        scan.next();
-        return std::make_unique<Number>(std::move(atoi(token->string.c_str())));
-    }
-    return nullptr;
-}
-
-std::unique_ptr<FunctionCall> Parser::parseFunctionCall() {
-    std::string name;
-    std::unique_ptr<LogicExpr> argument;
-    std::list<std::unique_ptr<LogicExpr>> argumentsList;
-    Token *token, *next;
-    token = scan.getCurr();
-    if (token->type == identifier) {
-        next = scan.getFuture();
-        if (next->type == lPar) {
-            name = std::move(token->string);
-            scan.next();
-            token = scan.next();
-            if (token->type != rPar) {
-                if (argument = parseLogicExpr()) {
-                    argumentsList.push_back(std::move(argument));
-                    token = scan.getCurr();
-                    while (token->type != rPar) {
-                        if (token->type == comma) {
-                            scan.next();
-                            if (argument = parseLogicExpr()) {
-                                argumentsList.push_back(std::move(argument));
-                                token = scan.getCurr();
-                            } else {
-                                token = scan.getCurr();
-                                throw std::runtime_error(*errString
-                                        (token->begin, "logic expression", token->string));
-                            }
-                        } else {
-                            throw std::runtime_error(*errString(
-                                    token->begin, ",", token->string));
-                        }
-                    }
-                    scan.next();
-                } else {
-                    throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
-                }
-            } else {
-                scan.next();
-            }
-            return std::make_unique<FunctionCall>(std::move(name), std::move(argumentsList));
-        }
-    }
-    return nullptr;
-}
-
-std::unique_ptr<MethodCall> Parser::parseMethodCall() {
-    std::string name;
-    std::unique_ptr<FunctionCall> functionCall;
-    Token *token, *next;
-    token = scan.getCurr();
-    if (token->type != identifier) {
-        next = scan.getFuture();
-        if (next->type == dot) {
-            name = std::move(token->string);
-            scan.next();
-            token = scan.next();
-            if (functionCall = parseFunctionCall()) {
-                return std::make_unique<MethodCall> (std::move(name), std::move(functionCall));
-            } else {
-                throw std::runtime_error(*errString(token->begin, "function call", token->string));
-            }
-        }
-    }
-    return nullptr;
-}
-
-std::unique_ptr<String> Parser::parseString() {
-    Token *token = scan.getCurr();
-    if (token->type == string) {
-        scan.next();
-        return std::make_unique<String>(std::move(token->string));
-    }
-    return nullptr;
-}
-
-/*
-std::unique_ptr<Argument> Parser::parseArgument() {
-    std::unique_ptr<Argument> argument;
     Token *token = scan.getCurr();
     switch (token->type) {
         case identifier:
-            token = scan.getFuture();
-            switch (token->type){
-                case lPar:
-                    return parseFunctionCall();
-                case dot:
-                    return parseMethodCall();
-                default:
-                    return parseVariable();
-            }
+            name = std::move(token->string);
+            scan.next();
+            return parseArgument(name);
         case number:
             return parseNumber();
         case string:
             return parseString();
         case lPar:
-             scan.next();
-             parseLogicExpr();
-             argument = std::move(parseLogicExpr());
-             token = scan.getCurr();
-             if (token->type != rPar) {
-                 throw std::runtime_error(*errString(token->begin, ")", token->string));
-             }
-             scan.next();
-            return argument;
+            scan.next();
+            if (argument = std::move(parseLogicExpr())) {
+                token = scan.getCurr();
+                if (token->type != rPar) {
+                    throw std::runtime_error(*errString(token->begin, ")", token->string));
+                }
+                scan.next();
+                return argument;
+            } else {
+                throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
+            }
         default:
-            throw std::runtime_error
-                    (*errString(token->begin, "const number, variable, function, string or method call", token->string));
+            return nullptr;
     }
 }
 
-std::unique_ptr<Variable> Parser::parseVariable() {
-    std::string name;
-    Token *token = scan.getCurr();
-    if (token->type == identifier) {
-        name = std::move(token->string);
-        scan.next();
-        return std::make_unique<Variable>(std::move(name));
+std::unique_ptr<Argument> Parser::parseArgument(std::string &name) {
+    Token *token;
+    token = scan.getCurr();
+    switch (token->type) {
+        case lPar:
+            return parseFunctionCall(name);
+        case dot:
+            return parseMethodCall(name);
+        default:
+            return parseVariable(name);
     }
-    throw std::runtime_error(*errString(token->begin, "variable name", token->string));
+}
+
+std::unique_ptr<Variable> Parser::parseVariable(std::string &name) {
+    return std::make_unique<Variable>(std::move(name));
 }
 
 std::unique_ptr<Number> Parser::parseNumber() {
@@ -645,71 +643,82 @@ std::unique_ptr<Number> Parser::parseNumber() {
         scan.next();
         return std::make_unique<Number>(std::move(atoi(token->string.c_str())));
     }
-    throw std::runtime_error(*errString(token->begin, "const number", token->string));
+    return nullptr;
 }
 
-std::unique_ptr<FunctionCall> Parser::parseFunctionCall() {
-    std::string name;
-    std::unique_ptr<LogicExpr> argument;
+std::unique_ptr<FunctionCall> Parser::parseFunctionCall(std::string &name) {
     std::list<std::unique_ptr<LogicExpr>> argumentsList;
-    Token *token, *prev;
-    prev = scan.getCurr();
-    if (prev->type == identifier) {
-        token = scan.getFuture();
-        if (token->type == lPar) {
-            name = std::move(prev->string);
-            token = scan.next();
-            if (token->type != rPar) {
-                scan.next();
-                if (argument = parseLogicExpr()) {
-                    argumentsList.push_back(std::move(argument));
-                    token = scan.getCurr();
-                    while (token->type != rPar) {
-                        if (token->type == comma) {
-                            scan.next();
-                            if (argument = parseLogicExpr()) {
-                                argumentsList.push_back(std::move(argument));
-                                token = scan.getCurr();
-                            } else {
-                                token = scan.getCurr();
-                                throw std::runtime_error(*errString
-                                        (token->begin, "logic expression", token->string));
-                            }
-                        } else {
-                            throw std::runtime_error(*errString(
-                                    token->begin, ",", token->string));
-                        }
-                    }
-                } else {
-                    throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
-                }
-            } else {
-                scan.next();
-            }
+    std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>> argumentsListPtr;
+    Token *token;
+    token = scan.getCurr();
+    if (argumentsListPtr = parseCallArguments()) {
+        argumentsList = std::move(*argumentsListPtr);
+        return std::make_unique<FunctionCall>(std::move(name), std::move(argumentsList));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<MethodCall> Parser::parseMethodCall(std::string &name) {
+    std::unique_ptr<FunctionCall> functionCall;
+    std::list<std::unique_ptr<LogicExpr>> argumentsList;
+    std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>> argumentsListPtr;
+    std::string methodName;
+    Token *token;
+    token = scan.getCurr();
+    if (token->type == dot) {
+        token = scan.next();
+        if (token->type == identifier){
+            methodName = std::move(token->string);
             scan.next();
-            return std::make_unique<FunctionCall>(std::move(name), std::move(argumentsList));
+            if (argumentsListPtr = parseCallArguments()) {
+                argumentsList = std::move(*argumentsListPtr);
+                return std::make_unique<MethodCall>(std::move(name), std::move(methodName), std::move(argumentsList));
+            } else {
+                throw std::runtime_error(*errString(token->begin, "arguments list", token->string));
+            }
+
+        } else {
+            throw std::runtime_error(*errString(token->begin, "method name", token->string));
         }
     }
     return nullptr;
 }
 
-std::unique_ptr<MethodCall> Parser::parseMethodCall() {
-    std::string name;
-    std::unique_ptr<FunctionCall> functionCall;
-    Token *token, *prev;
-    prev = scan.getCurr();
-    if (prev->type != identifier) {
-        token = scan.getFuture();
-        if (token->type == dot) {
-            name = std::move(prev->string);
-            token = scan.next();
-            scan.next();
-            if (functionCall = parseFunctionCall()) {
-                return std::make_unique<MethodCall> (std::move(name), std::move(functionCall));
+std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>> Parser::parseCallArguments() {
+    Token *token;
+    std::unique_ptr<LogicExpr> argument;
+    std::unique_ptr<std::list<std::unique_ptr<LogicExpr>>>
+            argumentsList(new(std::list<std::unique_ptr<LogicExpr>>));
+
+    token = scan.getCurr();
+    if (token->type == lPar) {
+        token = scan.next();
+        if (token->type != rPar) {
+            if (argument = parseLogicExpr()) {
+                argumentsList->push_back(std::move(argument));
+                token = scan.getCurr();
+                while (token->type != rPar) {
+                    if (token->type == comma) {
+                        scan.next();
+                        if (argument = parseLogicExpr()) {
+                            argumentsList->push_back(std::move(argument));
+                            token = scan.getCurr();
+                        } else {
+                            token = scan.getCurr();
+                            throw std::runtime_error(*errString
+                                    (token->begin, "logic expression", token->string));
+                        }
+                    } else {
+                        throw std::runtime_error(*errString(
+                                token->begin, ",", token->string));
+                    }
+                }
             } else {
-                throw std::runtime_error(*errString(token->begin, "function call", token->string));
+                throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
             }
         }
+        scan.next();
+        return argumentsList;
     }
     return nullptr;
 }
@@ -722,158 +731,3 @@ std::unique_ptr<String> Parser::parseString() {
     }
     return nullptr;
 }
- */
-
-void Variable::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = Variable" << std::endl;
-     std::cout << std::string(setw, ' ') << "value = " << name << std::endl;
-}
-void Number::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = Number" << std::endl;
-    std::cout << std::string(setw, ' ') << "value = " << value << std::endl;
-}
-void FunctionCall::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = FunctionCall" << std::endl;
-    std::cout << std::string(setw, ' ') << "function name = " << name << std::endl;
-    std::cout << std::string(setw, ' ') << "arguments: {" << std::endl;
-    for (auto &&i: arguments) {
-        i->printValue(setw + 4);
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void String::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = String" << std::endl;
-     std::cout << std::string(setw, ' ') << "value = " << value << std::endl;
-}
-void MethodCall::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = MethodCall" << std::endl;
-    std::cout << std::string(setw, ' ') << "base object name = " << name << std::endl;
-    std::cout << std::string(setw, ' ') << "method: {" << std::endl;
-    function->printValue(setw + 4);
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void MultExpr::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = MultExpr" << std::endl;
-    std::cout << std::string(setw, ' ') << "arguments {" << std::endl;
-    for (auto&& i: exprList) {
-        i->printValue(setw + 4);
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-    std::cout << std::string(setw, ' ') << "operators {" << std::endl;
-    for (TokenType i: operators) {
-        std::cout << std::string(setw + 4, ' ') << i << std::endl;
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void AddExpr::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = AddExpr" << std::endl;
-    std::cout << std::string(setw, ' ') << "arguments {" << std::endl;
-    for (auto&& i: exprList) {
-        i->printValue(setw + 4);
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-    std::cout << std::string(setw, ' ') << "operators {" << std::endl;
-    for (TokenType i: operators) {
-        std::cout << std::string(setw + 4, ' ') << i << std::endl;
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void CmpExpr::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = CmpExpr" << std::endl;
-    std::cout << std::string(setw, ' ') << "arguments {" << std::endl;
-    for (auto&& i: exprList) {
-        i->printValue(setw + 4);
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-    std::cout << std::string(setw, ' ') << "operators {" << std::endl;
-    for (TokenType i: operators) {
-        std::cout << std::string(setw + 4, ' ') << i << std::endl;
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void LogicExpr::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = LogicExpr" << std::endl;
-    std::cout << std::string(setw, ' ') << "negated = " << negated << std::endl;
-    std::cout << std::string(setw, ' ') << "arguments {" << std::endl;
-    for (auto&& i: exprList) {
-        i->printValue(setw + 4);
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-    std::cout << std::string(setw, ' ') << "operators {" << std::endl;
-    for (TokenType i: operators) {
-        std::cout << std::string(setw + 4, ' ') << i << std::endl;
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void Assignment::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = Assigment" << std::endl;
-    std::cout << std::string(setw, ' ') << "lValue = " << lVal << std::endl;
-    std::cout << std::string(setw, ' ') << "rValue {" << std::endl;
-    rVal->printValue(setw + 4);
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void VariableDefinition::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = VariableDefinition" << std::endl;
-    std::cout << std::string(setw, ' ') << "type = " << type << std::endl;
-    std::cout << std::string(setw, ' ') << "name = " << name << std::endl;
-    std::cout << std::string(setw, ' ') << "reference = " << reference << std::endl;
-}
-void IfStatement::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = IfStatement" << std::endl;
-    std::cout << std::string(setw, ' ') << "conditon {" << std::endl;
-    condition->printValue(setw + 4);
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-    std::cout << std::string(setw, ' ') << "body {" << std::endl;
-    body->printValue(setw + 4);
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void ForStatement::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = ForStatement" << std::endl;
-    std::cout << std::string(setw, ' ') << "iteratorName = " << iteratorName << std::endl;
-    std::cout << std::string(setw, ' ') << "variable = " << variable << std::endl;
-    std::cout << std::string(setw, ' ') << "body {" << std::endl;
-    body->printValue(setw + 4);
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void ReturnStatement::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = ReturnStatement" << std::endl;
-    std::cout << std::string(setw, ' ') << "value {" << std::endl;
-    value->printValue(setw + 4);
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void InstructionSet::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = InstructionSet {" << std::endl;
-    for (std::unique_ptr<Statement> const &i: statements) {
-        i->printValue(setw + 4);
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void ArgumentPair::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = ArgumentPair" << std::endl;
-    std::cout << std::string(setw, ' ') << "type = " << type << std::endl;
-    std::cout << std::string(setw, ' ') << "name = " << name << std::endl;
-}
-void FunctionDefinition::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = FunctionDefinition" << std::endl;
-    std::cout << std::string(setw, ' ') << "name = " << name << std::endl;
-    std::cout << std::string(setw, ' ') << "arguments {" << std::endl;
-    for (auto &&i: *argumentsList) {
-        i->printValue(setw + 4);
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-    std::cout << std::string(setw, ' ') << "body {" << std::endl;
-    body->printValue(setw + 4);
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-void Program::printValue(int setw) const {
-    std::cout << std::string(setw, ' ') << "Node type = Program" << std::endl;
-    std::cout << std::string(setw, ' ') << "functions {" << std::endl;
-    for (std::unique_ptr<FunctionDefinition> const &i: Functions) {
-        i->printValue(setw + 4);
-    }
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-    std::cout << std::string(setw + 4, ' ') << "instruction set {" << std::endl;
-    instructionSet->printValue(setw + 4);
-    std::cout << std::string(setw, ' ') << "}" << std::endl;
-}
-

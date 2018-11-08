@@ -13,13 +13,8 @@ Scaner::Scaner(Source &src): src(src) {
     kwMap.insert(std::make_pair("if", ifKw));
     kwMap.insert(std::make_pair("return", returnKw));
     kwMap.insert(std::make_pair("function", functionKw));
-    getFuture();
+    kwMap.insert(std::make_pair("group", groupKw));
     next();
-    next();
-}
-
-Token* Scaner::getFuture() {
-    return &future;
 }
 
 Token* Scaner::getCurr() {
@@ -29,36 +24,35 @@ Token* Scaner::getCurr() {
 Token* Scaner::next() {
     int c;
 
-    curr = future;
     c = src.getChar();
     while (isspace(c) || c == '/') {
         if (isspace(c)) {
             src.moveForward();
             c = src.getChar();
         } else { //Comment or div operator
-            future.begin = src.getTexstPos();
+            curr.begin = src.getTexstPos();
             src.moveForward();
             if (src.getChar() == '*') {
                 skipComment();
                 c = src.getChar();
             } else {
-                future.type = divOp;
-                future.string = "/";
+                curr.type = divOp;
+                curr.string = "/";
                 return &curr;
             }
         }
     }
     if (c == EOF) {
-        future.type = eof;
-        future.begin = src.getTexstPos();
+        curr.type = eof;
+        curr.begin = src.getTexstPos();
     } else if (isalpha(c)) {
-        future = getIdent();
+        curr = getIdent();
     } else if (isdigit(c)) {
-        future = getNum();
+        curr = getNum();
     } else if (c == '"') {
-        future = getString();
+        curr = getString();
     } else {
-        future = getOperator();
+        curr = getOperator();
     }
     return (&curr);
 }
@@ -137,7 +131,8 @@ Token Scaner::getOperator() {
         case '&':
             src.moveForward();
             if (src.getChar() != '&') {
-                token.type = NaT;
+                token.string =  std::move(curString);
+                return (token);
             } else {
                 curString += (char) c;
                 token.string = std::move(curString);

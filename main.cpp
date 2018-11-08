@@ -22,8 +22,7 @@ int main(int argc, char **argv) {
         Token *token;
 
         do {
-            token = scaner.getFuture();
-            scaner.next();
+            token = scaner.next();
             if (token->type != NaT)
                 std::cout << token->string << std::endl;
             else

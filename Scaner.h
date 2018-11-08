@@ -16,6 +16,7 @@ enum TokenType {
     ifKw,
     returnKw,
     functionKw,
+    groupKw,
     identifier,
     negOp,
     andOp,
@@ -31,6 +32,7 @@ enum TokenType {
     multOp,
     divOp,
     assignOp,
+    refOp,
     number,
     string,
     lBrace,
@@ -56,7 +58,6 @@ private:
     Source& src;
     std::map<std::string, enum TokenType> kwMap;
     Token curr;
-    Token future;
 
     Token getIdent();
     Token getNum();
@@ -66,7 +67,6 @@ private:
 public:
     explicit Scaner(Source& src);
     Token *next();
-    Token *getFuture();
     Token *getCurr();
 };
 
