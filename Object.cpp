@@ -6,7 +6,7 @@
 #include "Function.h"
 
 Object::Object(const std::string &type): type(type), anonymous(true) {}
-Object::Object(const Object &other): type(other.type), methods(other.methods), anonymous(true) {}
+Object::Object(const Object &other): type(other.type), anonymous(true) {}
 /*Object* Object::evaluateMethod(const std::string &name, Objects &arguments) {
     Objects
     auto &&methodPair = methods.find(name);

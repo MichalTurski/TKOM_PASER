@@ -4,6 +4,7 @@
 
 #include "BuildIn.h"
 #include "Symbols.h"
+#include "Function.h"
 
 
 Num::Num(): Object("Num") {}
@@ -18,7 +19,7 @@ Object* Num::evaluateMethod(const std::string &name, Objects &arguments) {
     return nullptr;
 }
 
-Reference::Reference(): Object("Reference") {}
+Reference::Reference(): Object("Reference"), object(nullptr) {}
 Reference* Reference::clone() const {
     return new Reference(*this);
 }

@@ -30,15 +30,8 @@ class LogicExpr;
 class ExprArgument: public virtual Node {
 public:
     virtual void printValue(int setw) const = 0;
-    virtual Object *evaluate(ExecutionState &state) = 0;
+    virtual Object* evaluate(ExecutionState &state) = 0;
 };
-
-/*class FunArgument: public virtual Node {
-public:
-    virtual void printValue(int setw) const = 0;
-    virtual const std::string &getName() const;
-    virtual Object &getObject() = 0;
-};*/
 
 class Statement: public virtual Node {
 public:
@@ -168,11 +161,11 @@ public:
 
 class MethodRef: public ExprArgument {
 private:
-    std::string group;
+    std::string object;
     std::string method;
 public:
     MethodRef(std::string &&group, std::string &&method):
-            group(std::move(group)),
+            object(std::move(group)),
             method(std::move(method)){}
     void printValue(int setw) const override;
     Object *evaluate(ExecutionState &state) override;

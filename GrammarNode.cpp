@@ -40,6 +40,15 @@ Object *FunctionDefinition::evaluate(Objects &arguments) {
     body->execute(calleeState);
     return calleeState.getReturn();
 }
+std::string& FunctionDefinition::getName() {
+    return name;
+}
+const std::string& ArgumentPair::getType() const {
+    return type;
+}
+const std::string& ArgumentPair::getName() const {
+    return name;
+}
 void InstructionSet::execute(ExecutionState &state) {
     for (auto &i: statements) {
         i->execute(state);
@@ -61,6 +70,10 @@ void IfStatement::execute(ExecutionState &state) {
     } else {
         error("Improper type of condition");
     }
+}
+void ForStatement::execute(ExecutionState &state) {
+    //TODO
+    return;
 }
 void Assignment::execute(ExecutionState &state) {
     Object *object;
@@ -113,26 +126,9 @@ Object *LogicExpr::evaluate(ExecutionState &state) {
         }
     }
     return object;
-    /*int curr, soFar;
-    auto exprIter = exprList.begin();
-    soFar = (*exprIter)->execute(state);
-    for (auto &&i: operators) {
-        curr = (*++exprIter)->execute(state);
-        switch (i) {
-            case orOp:
-                soFar = soFar || curr;
-                break;
-            case andOp:
-                soFar = soFar && curr;
-                break;
-            default:
-                error("Wrong operator.");
-        }
-    }
-    if (negated) {
-        soFar = ! soFar;
-    }
-    return soFar;*/
+}
+void  LogicExpr::negate() {
+    negated = !negated;
 }
 Object *CmpExpr::evaluate(ExecutionState &state) {
     Object *object;
@@ -181,35 +177,6 @@ Object *CmpExpr::evaluate(ExecutionState &state) {
         }
     }
     return object;
-    /*int curr, soFar;
-    auto exprIter = exprList.begin();
-    soFar = (*exprIter)->execute(state);
-    for (auto &&i: operators) {
-        curr = (*++exprIter)->execute(state);
-        switch (i) {
-            case moreOp:
-                soFar = soFar > curr;
-                break;
-            case lessOp:
-                soFar = soFar < curr;
-                break;
-            case eqOp:
-                soFar = soFar == curr;
-                break;
-            case neqOp:
-                soFar = soFar != curr;
-                break;
-            case moreEqOp:
-                soFar = soFar >= curr;
-                break;
-            case lessEqOp:
-                soFar = soFar <= curr;
-                break;
-            default:
-                error("Wrong operator.");
-        }
-    }
-    return soFar;*/
 }
 Object *AddExpr::evaluate(ExecutionState &state) {
     Object *object;
@@ -246,23 +213,6 @@ Object *AddExpr::evaluate(ExecutionState &state) {
         }
     }
     return object;
-    /*int curr, soFar;
-    auto exprIter = exprList.begin();
-    soFar = (*exprIter)->execute(state);
-    for (auto &&i: operators) {
-        curr = (*++exprIter)->execute(state);
-        switch (i) {
-            case addOp:
-                soFar = soFar + curr;
-                break;
-            case andOp:
-                soFar = soFar - curr;
-                break;
-            default:
-                error("Wrong operator.");
-        }
-    }
-    return soFar;*/
 }
 Object *MultExpr::evaluate(ExecutionState &state) {
     Object *object;
@@ -354,6 +304,21 @@ void FunctionCall::execute(ExecutionState &state) {
         assert(obj->Anonymous());
         delete (obj);
     }
+}
+Object* FunctionRef::evaluate(ExecutionState &state) {
+    Reference *reference = new(Reference);
+    reference->setName(name);
+    return reference;
+}
+Object* MethodRef::evaluate(ExecutionState &state) {
+    Reference *reference = new(Reference);
+    Object *objectPtr = state.getObject(this->object);
+    if (objectPtr == nullptr) {
+        error("Not such a object");
+    }
+    reference->setName(method);
+    reference->setObject(objectPtr);
+    return reference;
 }
 Object *ConstString::evaluate(ExecutionState &state) {
     String *string = new(String);
@@ -470,16 +435,13 @@ void LogicExpr::printValue(int setw) const {
     }
     std::cout << std::string(setw, ' ') << "}" << std::endl;
 }
-void  LogicExpr::negate() {
-    negated = !negated;
-}
 void FunctionRef::printValue(int setw) const {
     std::cout << std::string(setw, ' ') << "Node type = FunctionRef" << std::endl;
     std::cout << std::string(setw, ' ') << "function name = " << name << std::endl;
 }
 void MethodRef::printValue(int setw) const {
     std::cout << std::string(setw, ' ') << "Node type = MethodRef" << std::endl;
-    std::cout << std::string(setw, ' ') << "class name = " << group << std::endl;
+    std::cout << std::string(setw, ' ') << "class name = " << object << std::endl;
     std::cout << std::string(setw, ' ') << "method name = " << method << std::endl;
 }
 void Assignment::printValue(int setw) const {
@@ -534,7 +496,7 @@ void FunctionDefinition::printValue(int setw) const {
     std::cout << std::string(setw, ' ') << "Node type = FunctionDefinition" << std::endl;
     std::cout << std::string(setw, ' ') << "name = " << name << std::endl;
     std::cout << std::string(setw, ' ') << "arguments {" << std::endl;
-    for (auto &&i: *argumentsList) {
+    for (auto &&i: argumentsList) {
         i->printValue(setw + 4);
     }
     std::cout << std::string(setw, ' ') << "}" << std::endl;

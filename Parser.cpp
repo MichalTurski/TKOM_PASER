@@ -58,7 +58,7 @@ std::unique_ptr<FunctionDefinition> Parser::parseFunctionDefinition() {
                     token = scan.getCurr();
                     if (token->type == rBrace) {
                         scan.next();
-                        return std::make_unique<FunctionDefinition>(std::move(name), std::move(argumentsList),
+                        return std::make_unique<FunctionDefinition>(std::move(name), std::move(*argumentsList),
                                                                     std::move(instructionSet));
                     } else {
                         throw std::runtime_error(

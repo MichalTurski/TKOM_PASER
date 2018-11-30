@@ -6,6 +6,7 @@
 #include "ExecutionState.h"
 #include "BuildIn.h"
 #include "Symbols.h"
+#include "GrammarNode.h"
 
 ExecutionState::~ExecutionState() {
     for (auto&&i : localObjects) {

@@ -11,7 +11,8 @@
 #include <map>
 #include <list>
 #include "Object.h"
-#include "GrammarNode.h"
+
+class ArgumentPair;
 
 class ExecutionState {
 private:
