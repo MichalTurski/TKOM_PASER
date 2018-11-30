@@ -10,9 +10,17 @@
 #include <list>
 
 #include "Scaner.h"
+#include "ExecutionState.h"
+#include "Function.h"
 
 class Node {
+private:
+    TextPos textPos;
+protected:
+//    void addVariableToState(Symbols &symbols, ExecutionState &state, const std::string &type, const std::string &name,
+//                                  const std::string &reference);
 public:
+    void error(const char* msg);
     virtual void printValue(int setw) const = 0;
 };
 
@@ -22,59 +30,80 @@ class LogicExpr;
 class ExprArgument: public virtual Node {
 public:
     virtual void printValue(int setw) const = 0;
+    virtual Object *evaluate(ExecutionState &state) = 0;
 };
 
-class FunArgument: public virtual Node {
+/*class FunArgument: public virtual Node {
 public:
     virtual void printValue(int setw) const = 0;
+    virtual const std::string &getName() const;
+    virtual Object &getObject() = 0;
+};*/
+
+class Statement: public virtual Node {
+public:
+    virtual void execute(ExecutionState &state) = 0;
+};
+
+class Instruction: public virtual Statement {
+public:
+    virtual void execute(ExecutionState &state) = 0;
 };
 
 class Variable: public ExprArgument {
 private:
     std::string name;
 public:
-    Variable(std::string &&name): name(name) {}
+    explicit Variable(std::string &&name): name(name) {}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state) override;
+    const std::string &getName() const;
 };
 
-class Number: public ExprArgument {
+class ConstNum: public ExprArgument {
 private:
     int value;
 public:
-    Number(int val): value(val) {}
+    explicit ConstNum(int val): value(val) {}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state) override;
 };
 
-class FunctionCall: public ExprArgument {
+class FunctionCall: public Instruction, public ExprArgument {
 private:
     std::string name;
-    std::list<std::unique_ptr<FunArgument>> arguments;
+    std::list<std::unique_ptr<Variable>> arguments;
 public:
-    FunctionCall(std::string &&name, std::list<std::unique_ptr<FunArgument>> &&arguments):
+    FunctionCall(std::string &&name, std::list<std::unique_ptr<Variable>> &&arguments):
             name(name),
             arguments(std::move(arguments)) {}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state) override;
+    void execute(ExecutionState &state) override;
 };
 
-class String: public ExprArgument {
+class ConstString: public ExprArgument {
 private:
     std::string value;
 public:
-    String(std::string &&value): value(value) {}
+    explicit ConstString(std::string &&value): value(value) {}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state) override;
 };
 
-class MethodCall: public ExprArgument {
+class MethodCall: public Instruction, public ExprArgument {
 private:
     std::string object;
     std::string method;
-    std::list<std::unique_ptr<FunArgument>> arguments;
+    std::list<std::unique_ptr<Variable>> arguments;
 public:
-    MethodCall(std::string &&object, std::string &&method, std::list<std::unique_ptr<FunArgument>> &&args):
+    MethodCall(std::string &&object, std::string &&method, std::list<std::unique_ptr<Variable>> &&args):
             object(std::move(object)),
             method(std::move(method)),
             arguments(std::move(args)) {}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state) override;
+    void execute(ExecutionState &state) override;
 };
 
 class MultExpr: public Node {
@@ -86,6 +115,7 @@ public:
              std::list<TokenType> &&operators): exprList(std::move(exprList)),
                                                 operators(std::move(operators)){}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state);
 };
 
 class AddExpr: public Node {
@@ -97,6 +127,7 @@ public:
             std::list<TokenType> &&operators): exprList(std::move(exprList)),
                                                operators(operators){}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state);
 };
 
 class CmpExpr: public Node {
@@ -108,13 +139,10 @@ public:
             std::list<TokenType> &&operators): exprList(std::move(exprList)),
                                                operators(operators){}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state);
 };
 
-class Statement: public virtual Node {};
-
-class Instruction: public virtual Statement {};
-
-class LogicExpr: public Instruction, public ExprArgument, public FunArgument {
+class LogicExpr: public ExprArgument {
 private:
     bool negated;
     std::list<std::unique_ptr<CmpExpr>> exprList;
@@ -126,17 +154,19 @@ public:
                                                  operators(operators){}
     void printValue(int setw) const override;
     void negate();
+    Object *evaluate(ExecutionState &state) override;
 };
 
-class FunctionRef: public FunArgument {
+class FunctionRef: public ExprArgument {
 private:
     std::string name;
 public:
     explicit FunctionRef(std::string &&name): name(std::move(name)){}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state) override;
 };
 
-class MethodRef: public FunArgument {
+class MethodRef: public ExprArgument {
 private:
     std::string group;
     std::string method;
@@ -145,6 +175,8 @@ public:
             group(std::move(group)),
             method(std::move(method)){}
     void printValue(int setw) const override;
+    Object *evaluate(ExecutionState &state) override;
+//    const std::string &getGroup() const;
 };
 
 class Assignment: public Instruction {
@@ -156,6 +188,7 @@ public:
             lVal(lVal),
             rVal(std::move(rVal)) {}
     void printValue(int setw) const override;
+    void execute(ExecutionState &state) override;
 };
 
 class VariableDefinition: public Instruction {
@@ -169,6 +202,7 @@ public:
             name(name),
             reference(reference){}
     void printValue(int setw) const override;
+    void execute(ExecutionState &state) override;
 };
 
 class IfStatement: public Statement {
@@ -180,6 +214,7 @@ public:
             condition(std::move(condition)),
             body(std::move(body)) {}
     void printValue(int setw) const override;
+    void execute(ExecutionState &state) override;
 };
 
 class ForStatement: public Statement {
@@ -193,15 +228,16 @@ public:
                                                           variable(variable),
                                                           body(std::move(body)) {}
     void printValue(int setw) const override;
-
+    void execute(ExecutionState &state) override;
 };
 
 class ReturnStatement: public Statement {
-    std::unique_ptr<LogicExpr> value;
+    std::unique_ptr<LogicExpr> expr;
 public:
-    ReturnStatement(std::unique_ptr<LogicExpr> value):
-            value(std::move(value)) {}
+    explicit ReturnStatement(std::unique_ptr<LogicExpr> value):
+            expr(std::move(value)) {}
     void printValue(int setw) const override;
+    void execute(ExecutionState &state) override;
 };
 
 class InstructionSet:public Node {
@@ -209,9 +245,10 @@ private:
     std::list<std::unique_ptr<Statement>> statements;
 public:
     InstructionSet(InstructionSet &&set) = default;
-    InstructionSet(std::list<std::unique_ptr<Statement>> &&statements):
+    explicit InstructionSet(std::list<std::unique_ptr<Statement>> &&statements):
             statements(std::move(statements)){}
     void printValue(int setw) const override;
+    void execute(ExecutionState &state);
 };
 
 class ArgumentPair: public Node {
@@ -223,20 +260,24 @@ public:
             type(type),
             name(name) {}
     void printValue(int setw) const override;
+    const std::string &getType() const;
+    const std::string &getName() const;
 };
 
-class FunctionDefinition: public Node {
+class FunctionDefinition: public Node, public Function {
 private:
     std::string name;
-    std::unique_ptr<std::list<std::unique_ptr<ArgumentPair>>> argumentsList;
+    std::list<std::unique_ptr<ArgumentPair>> argumentsList;
     std::unique_ptr<InstructionSet> body;
 public:
     FunctionDefinition(std::string &&name,
-                       std::unique_ptr<std::list<std::unique_ptr<ArgumentPair>>> &&argumentsList,
-    std::unique_ptr<InstructionSet> &&body):
-    name(std::move(name)),
-    argumentsList(std::move(argumentsList)),
-    body(std::move(body)) {}
+                       std::list<std::unique_ptr<ArgumentPair>> &&argumentsList,
+                       std::unique_ptr<InstructionSet> &&body):
+                            name(std::move(name)),
+                            argumentsList(std::move(argumentsList)),
+                            body(std::move(body)) {}
+    std::string &getName();
+    Object* evaluate(Objects &arguments) override ;
     void printValue(int setw) const override;
 };
 
@@ -245,12 +286,13 @@ private:
     std::string name;
     std::list<std::unique_ptr<VariableDefinition>> fieldsList;
     std::list<std::unique_ptr<FunctionDefinition>> methodsList;
+//    Variables groupVariables;
 public:
     GroupDefinition(std::string &&name, std::list<std::unique_ptr<VariableDefinition>> &&fieldsList,
                     std::list<std::unique_ptr<FunctionDefinition>> &&methodsList):
-            name(std::move(name)),
-            fieldsList(std::move(fieldsList)),
-            methodsList(std::move(methodsList)){}
+                        name(std::move(name)),
+                        fieldsList(std::move(fieldsList)),
+                        methodsList(std::move(methodsList)){}
     void printValue(int setw) const override;
 };
 
@@ -266,7 +308,7 @@ public:
             groups(std::move(groups)),
             instructionSet(std::move(instructionSet)) {};
     void printValue(int setw) const override;
-//    void parse(Source &src, Scaner &scan);1
+    int execute();
 };
 
 #endif //PROJEKT_GRAMMARNODE_H

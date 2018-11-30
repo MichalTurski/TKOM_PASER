@@ -357,10 +357,12 @@ std::unique_ptr<Instruction> Parser::parseInstruction() {
         scan.next();
         if (!(instruction = std::move(parseVariableDefinition(name)))) {
             if (!(instruction = std::move(parseAssignment(name)))) {
-                if (!(instruction = std::move(parseLogicExpr(name)))) {
-                    token = scan.getCurr();
-                    throw std::runtime_error
-                            (*errString(token->begin, "operator, ( or identifier", token->string));
+                if (!(instruction = std::move(parseFunctionCall(name)))) {
+                    if (!(instruction = std::move(parseMethodCall(name)))) {
+                        token = scan.getCurr();
+                        throw std::runtime_error
+                                (*errString(token->begin, "operator, ( or identifier", token->string));
+                    }
                 }
             }
         }
@@ -369,9 +371,6 @@ std::unique_ptr<Instruction> Parser::parseInstruction() {
             throw std::runtime_error(*errString(token->begin, ";", token->string));
         }
         scan.next();
-        return instruction;
-    }
-    if (instruction = parseLogicExpr()) {
         return instruction;
     }
     return nullptr;
@@ -615,6 +614,19 @@ std::unique_ptr<ExprArgument> Parser::parseExprArgument() {
             } else {
                 throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
             }
+        case refOp:
+            token = scan.next();
+            if (token->type == identifier) {
+                name = std::move(token->string);
+                scan.next();
+                if (!(argument = parseMethodReference(name))) {
+                    if (!(argument = parseFunReference(name))) {
+                        throw std::runtime_error(*errString(token->begin, "reference", token->string));
+                    }
+                }
+                return argument;
+            }
+            throw std::runtime_error(*errString(token->begin, "identifier", token->string));
         default:
             return nullptr;
     }
@@ -637,18 +649,29 @@ std::unique_ptr<Variable> Parser::parseVariable(std::string &name) {
     return std::make_unique<Variable>(std::move(name));
 }
 
-std::unique_ptr<Number> Parser::parseNumber() {
+std::unique_ptr<Variable> Parser::parseVariable() {
+    std::string name;
+    Token *token = scan.getCurr();
+    if (token->type == identifier) {
+        name = std::move(token->string);
+        scan.next();
+        return std::make_unique<Variable>(std::move(name));
+    }
+    return nullptr;
+}
+
+std::unique_ptr<ConstNum> Parser::parseNumber() {
     Token *token = scan.getCurr();
     if (token->type == number) {
         scan.next();
-        return std::make_unique<Number>(std::move(atoi(token->string.c_str())));
+        return std::make_unique<ConstNum>(atoi(token->string.c_str()));
     }
     return nullptr;
 }
 
 std::unique_ptr<FunctionCall> Parser::parseFunctionCall(std::string &name) {
-    std::list<std::unique_ptr<FunArgument>> argumentsList;
-    std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> argumentsListPtr;
+    std::list<std::unique_ptr<Variable>> argumentsList;
+    std::unique_ptr<std::list<std::unique_ptr<Variable>>> argumentsListPtr;
     Token *token;
     token = scan.getCurr();
     if (argumentsListPtr = parseCallArguments()) {
@@ -660,8 +683,8 @@ std::unique_ptr<FunctionCall> Parser::parseFunctionCall(std::string &name) {
 
 std::unique_ptr<MethodCall> Parser::parseMethodCall(std::string &name) {
     std::unique_ptr<FunctionCall> functionCall;
-    std::list<std::unique_ptr<FunArgument>> argumentsList;
-    std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> argumentsListPtr;
+    std::list<std::unique_ptr<Variable>> argumentsList;
+    std::unique_ptr<std::list<std::unique_ptr<Variable>>> argumentsListPtr;
     std::string methodName;
     Token *token;
     token = scan.getCurr();
@@ -684,11 +707,11 @@ std::unique_ptr<MethodCall> Parser::parseMethodCall(std::string &name) {
     return nullptr;
 }
 
-std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> Parser::parseCallArguments() {
+std::unique_ptr<std::list<std::unique_ptr<Variable>>> Parser::parseCallArguments() {
     Token *token;
-    std::unique_ptr<FunArgument> argument;
-    std::unique_ptr<std::list<std::unique_ptr<FunArgument>>>
-            argumentsList(new(std::list<std::unique_ptr<FunArgument>>));
+    std::unique_ptr<Variable> argument;
+    std::unique_ptr<std::list<std::unique_ptr<Variable>>>
+            argumentsList(new(std::list<std::unique_ptr<Variable>>));
 
     token = scan.getCurr();
     if (token->type == lPar) {
@@ -723,10 +746,9 @@ std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> Parser::parseCallArgume
     return nullptr;
 }
 
-std::unique_ptr<FunArgument> Parser::parseFunArgument() {
-    std::string name;
-    std::unique_ptr<FunArgument> argument;
-    Token *token = scan.getCurr();
+std::unique_ptr<Variable> Parser::parseFunArgument() {
+    return parseVariable();
+    /*
     switch (token->type) {
         case refOp:
             token = scan.next();
@@ -741,9 +763,13 @@ std::unique_ptr<FunArgument> Parser::parseFunArgument() {
                 return argument;
             }
             throw std::runtime_error(*errString(token->begin, "identifier", token->string));
+        case string:
+            return parseString();
+        case number:
+            return parseNumber();
         default:
-            return parseLogicExpr();
-    }
+            return parseVariable();
+    }*/
 }
 
 std::unique_ptr<FunctionRef> Parser::parseFunReference(std::string &name) {
@@ -765,11 +791,11 @@ std::unique_ptr<MethodRef> Parser::parseMethodReference(std::string &name) {
     return nullptr;
 }
 
-std::unique_ptr<String> Parser::parseString() {
+std::unique_ptr<ConstString> Parser::parseString() {
     Token *token = scan.getCurr();
     if (token->type == string) {
         scan.next();
-        return std::make_unique<String>(std::move(token->string));
+        return std::make_unique<ConstString>(std::move(token->string));
     }
     return nullptr;
 }

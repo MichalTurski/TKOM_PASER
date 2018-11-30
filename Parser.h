@@ -45,14 +45,15 @@ class Parser {
     std::unique_ptr<ExprArgument> parseExprArgument();
     std::unique_ptr<ExprArgument> parseExprArgument(std::string &name);
     std::unique_ptr<Variable> parseVariable(std::string &name);
-    std::unique_ptr<Number> parseNumber();
+    std::unique_ptr<Variable> parseVariable();
+    std::unique_ptr<ConstNum> parseNumber();
     std::unique_ptr<FunctionCall> parseFunctionCall(std::string &name);
     std::unique_ptr<MethodCall> parseMethodCall(std::string &name);
-    std::unique_ptr<std::list<std::unique_ptr<FunArgument>>> parseCallArguments();
-    std::unique_ptr<FunArgument> parseFunArgument();
+    std::unique_ptr<std::list<std::unique_ptr<Variable>>> parseCallArguments();
+    std::unique_ptr<Variable> parseFunArgument();
     std::unique_ptr<FunctionRef> parseFunReference(std::string &name);
     std::unique_ptr<MethodRef> parseMethodReference(std::string &name);
-    std::unique_ptr<String> parseString();
+    std::unique_ptr<ConstString> parseString();
 public:
     Parser(Source &src, Scaner &scan): scan(scan), src(src) {}
     std::unique_ptr<Program> parseProgram();
