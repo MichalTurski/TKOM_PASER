@@ -22,8 +22,13 @@ Object* ExecutionState::getObject(const std::string &name) {
     }
 }
 void ExecutionState::addObject(const std::string &name, Object *object) {
+    Object *oldObject;
     localObjects.emplace_back(object);
-    objects.emplace(name, object);
+    oldObject = objects[name];
+    if (oldObject) {
+        delete(oldObject);
+    }
+    objects[name] = object;
 }
 void ExecutionState::addObjects(const Objects &newObjects,
                                 const std::list<std::unique_ptr<ArgumentPair>> &argsNames) {

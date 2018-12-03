@@ -301,7 +301,7 @@ public:
             groups(std::move(groups)),
             instructionSet(std::move(instructionSet)) {};
     void printValue(int setw) const override;
-    int execute();
+    int execute(const std::list<std::string> &libNames);
 };
 
 #endif //PROJEKT_GRAMMARNODE_H

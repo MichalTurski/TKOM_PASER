@@ -13,8 +13,9 @@
 
 Symbols symbols;
 
-int Program::execute() {
+int Program::execute(const std::list<std::string> &libNames) {
     ExecutionState state;
+    int retVal;
     for (auto &&function : functions){
         symbols.addLocalFunction(*function);
     }
@@ -27,8 +28,9 @@ int Program::execute() {
     if (state.isReturning()) {
         Object *retObj = state.getReturn();
         if (Num *retNum = dynamic_cast<Num *>(retObj)) {
-            int retVal = retNum->value;
+            retVal = retNum->value;
             free(retObj);
+            return retVal;
         } else {
             error("Can't return not-Num from program.");
         }
@@ -73,7 +75,6 @@ void IfStatement::execute(ExecutionState &state) {
 }
 void ForStatement::execute(ExecutionState &state) {
     //TODO
-    return;
 }
 void Assignment::execute(ExecutionState &state) {
     Object *object;
