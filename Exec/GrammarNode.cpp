@@ -11,9 +11,22 @@
 #include "../LibraryInterface/Symbols.h"
 #include "ExecutionState.h"
 #include "../LibraryInterface/Function.h"
+#include "Reference.h"
 
 Symbols symbols;
 
+Program::~Program() {
+//    void (*free)(void);
+//    char *errStr;
+//
+    for (auto &&lib :libraries) {
+        /* *(void**)(&free) = dlsym(lib, "destroy");
+        if (errStr = dlerror()) {
+            error(errStr);
+        }*/
+        dlclose(lib);
+    }
+}
 int Program::execute(const std::list<std::string> &libNames) {
     ExecutionState state;
     int retVal;
@@ -42,16 +55,19 @@ int Program::execute(const std::list<std::string> &libNames) {
 }
 void Program::loadLibrary(const std::string &name) {
     void (*loader)(Symbols &);
-    void *lib = dlopen(name.c_str(), RTLD_NOW);
+    char *errStr;
+    void *lib = dlopen(name.c_str(), RTLD_LAZY);
     if (lib) {
-        loader = (void (*)(Symbols &))dlsym(lib, "init");
-        if (!dlerror()) {
+        *(void**)(&loader) = dlsym(lib, "init");
+        if (!(errStr = dlerror())) {
             loader(symbols);
-            dlclose(lib);
+            libraries.emplace_back(lib);
             return;
         }
+    } else {
+        errStr = dlerror();
     }
-    error(dlerror());
+    error(errStr);
 }
 Object *FunctionDefinition::evaluate(Objects &arguments) {
     ExecutionState calleeState;
@@ -96,8 +112,12 @@ void ForStatement::execute(ExecutionState &state) {
 void Assignment::execute(ExecutionState &state) {
     Object *object;
     object = rVal->evaluate(state);
-    object->makeNamed(); /* Make object not anonymous to avoid freeing its memory */
-    state.addObject(lVal, object);
+    if (object) {
+        object->makeNamed(); /* Make object not anonymous to avoid freeing its memory */
+        state.addObject(lVal, object);
+    } else {
+        error("Can't assign invalid object.");
+    }
 }
 void VariableDefinition::execute(ExecutionState &state) {
     Object *newObject;

@@ -5,6 +5,7 @@
 #include "Symbols.h"
 #include "../Exec/GrammarNode.h"
 #include "BuildIn.h"
+#include "../Exec/Reference.h"
 
 Symbols::Symbols() {
     Num *numPrototype = new Num;
@@ -38,7 +39,7 @@ Object* Symbols::createObject(const std::string &name, const std::string &refere
     return classFactory.getObject(name, reference);
 }
 
-void Symbols::addClass(const std::string name, Object *prototype) {
+void Symbols::addClass(const std::string &name, Object *prototype) {
     classFactory.addClass(name, prototype);
 }
 void Symbols::addLocalFunction(FunctionDefinition &function) {

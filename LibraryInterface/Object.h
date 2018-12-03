@@ -27,7 +27,7 @@ protected:
 public:
     explicit Object(const std::string &type);
     Object(const Object &other);
-    virtual Object *clone() const = 0;
+    /*virtual Object *clone() const = 0;*/
     virtual Object *clone(const std::string &reference) const = 0;
     virtual Object *evaluateMethod(const std::string &name, Objects &arguments) = 0;
     void makeNamed();

@@ -29,9 +29,7 @@ public:
 
     void addLocalFunction(FunctionDefinition &function);
     void addExternFunction(const std::string & name, ExternFunction *function);
-    void addClass(const std::string name, Object *prototype);
+    void addClass(const std::string &name, Object *prototype);
 };
-
-extern Symbols symbols;
 
 #endif //PROJEKT_SYMBOLS_H

@@ -11,6 +11,7 @@
 #include <map>
 #include <list>
 #include "../LibraryInterface/Object.h"
+#include "../LibraryInterface/Symbols.h"
 
 class ArgumentPair;
 

@@ -293,6 +293,7 @@ class Program: public Node {
     std::unique_ptr<InstructionSet> instructionSet;
     std::list<std::unique_ptr<FunctionDefinition>> functions;
     std::list<std::unique_ptr<GroupDefinition>> groups;
+    std::list<void*> libraries;
 
     void loadLibrary(const std::string &name);
 public:
@@ -302,6 +303,7 @@ public:
             functions(std::move(functions)),
             groups(std::move(groups)),
             instructionSet(std::move(instructionSet)) {};
+    ~Program();
     void printValue(int setw) const override;
     int execute(const std::list<std::string> &libNames);
 };
