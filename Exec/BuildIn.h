@@ -5,7 +5,7 @@
 #ifndef PROJEKT_BUILDIN_H
 #define PROJEKT_BUILDIN_H
 
-#include "Object.h"
+#include "../LibraryInterface/Object.h"
 #include "ExecutionState.h"
 
 class Num: public Object {

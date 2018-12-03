@@ -7,9 +7,9 @@
 #include <iomanip>
 #include <cassert>
 
-#include "Scaner.h"
-#include "Source.h"
-#include "Parser.h"
+#include "Lexer/Scaner.h"
+#include "Lexer/Source.h"
+#include "Parser/Parser.h"
 
 void loadLibrary(std::string name) {
 

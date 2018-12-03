@@ -4,18 +4,22 @@
 
 #include <iostream>
 #include <assert.h>
+#include <dlfcn.h>
 
 #include "GrammarNode.h"
 #include "BuildIn.h"
-#include "Symbols.h"
+#include "../LibraryInterface/Symbols.h"
 #include "ExecutionState.h"
-#include "Function.h"
+#include "../LibraryInterface/Function.h"
 
 Symbols symbols;
 
 int Program::execute(const std::list<std::string> &libNames) {
     ExecutionState state;
     int retVal;
+    for (auto &&lib: libNames) {
+        loadLibrary(lib);
+    }
     for (auto &&function : functions){
         symbols.addLocalFunction(*function);
     }
@@ -35,6 +39,19 @@ int Program::execute(const std::list<std::string> &libNames) {
             error("Can't return not-Num from program.");
         }
     }
+}
+void Program::loadLibrary(const std::string &name) {
+    void (*loader)(Symbols &);
+    void *lib = dlopen(name.c_str(), RTLD_NOW);
+    if (lib) {
+        loader = (void (*)(Symbols &))dlsym(lib, "init");
+        if (!dlerror()) {
+            loader(symbols);
+            dlclose(lib);
+            return;
+        }
+    }
+    error(dlerror());
 }
 Object *FunctionDefinition::evaluate(Objects &arguments) {
     ExecutionState calleeState;

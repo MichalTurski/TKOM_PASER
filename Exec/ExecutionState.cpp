@@ -5,7 +5,7 @@
 #include <assert.h>
 #include "ExecutionState.h"
 #include "BuildIn.h"
-#include "Symbols.h"
+#include "../LibraryInterface/Symbols.h"
 #include "GrammarNode.h"
 
 ExecutionState::~ExecutionState() {

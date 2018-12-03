@@ -9,9 +9,9 @@
 #include <bits/unique_ptr.h>
 #include <memory>
 
-#include "Source.h"
-#include "Scaner.h"
-#include "GrammarNode.h"
+#include "../Lexer/Source.h"
+#include "../Lexer/Scaner.h"
+#include "../Exec/GrammarNode.h"
 
 class Parser {
     Scaner &scan;

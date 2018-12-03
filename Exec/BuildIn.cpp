@@ -3,8 +3,8 @@
 //
 
 #include "BuildIn.h"
-#include "Symbols.h"
-#include "Function.h"
+#include "../LibraryInterface/Symbols.h"
+#include "../LibraryInterface/Function.h"
 
 
 Num::Num(): Object("Num") {}

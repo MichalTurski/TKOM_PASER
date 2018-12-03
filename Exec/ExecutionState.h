@@ -10,7 +10,7 @@
 #include <bits/unique_ptr.h>
 #include <map>
 #include <list>
-#include "Object.h"
+#include "../LibraryInterface/Object.h"
 
 class ArgumentPair;
 

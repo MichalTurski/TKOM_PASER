@@ -9,9 +9,9 @@
 #include <bits/unique_ptr.h>
 #include <list>
 
-#include "Scaner.h"
+#include "../Lexer/Scaner.h"
 #include "ExecutionState.h"
-#include "Function.h"
+#include "../LibraryInterface/Function.h"
 
 class Node {
 private:
@@ -293,6 +293,8 @@ class Program: public Node {
     std::unique_ptr<InstructionSet> instructionSet;
     std::list<std::unique_ptr<FunctionDefinition>> functions;
     std::list<std::unique_ptr<GroupDefinition>> groups;
+
+    void loadLibrary(const std::string &name);
 public:
     Program(std::list<std::unique_ptr<FunctionDefinition>> &&functions,
             std::list<std::unique_ptr<GroupDefinition>> &&groups,
