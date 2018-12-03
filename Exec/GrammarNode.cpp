@@ -7,7 +7,7 @@
 #include <dlfcn.h>
 
 #include "GrammarNode.h"
-#include "BuildIn.h"
+#include "../LibraryInterface/BuildIn.h"
 #include "../LibraryInterface/Symbols.h"
 #include "ExecutionState.h"
 #include "../LibraryInterface/Function.h"
@@ -358,7 +358,6 @@ Object *Variable::evaluate(ExecutionState &state) {
 const std::string &Variable::getName() const {
     return name;
 }
-//TODO:: add other methods there
 
 void Node::error(const char *msg) {
     std::string errorMsg = "Can't execute code in line " + textPos.line;

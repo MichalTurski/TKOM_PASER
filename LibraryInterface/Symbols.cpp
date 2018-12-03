@@ -4,7 +4,7 @@
 
 #include "Symbols.h"
 #include "../Exec/GrammarNode.h"
-#include "../Exec/BuildIn.h"
+#include "BuildIn.h"
 
 Symbols::Symbols() {
     Num *numPrototype = new Num;

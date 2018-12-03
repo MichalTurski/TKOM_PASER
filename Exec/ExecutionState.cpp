@@ -4,7 +4,7 @@
 
 #include <assert.h>
 #include "ExecutionState.h"
-#include "BuildIn.h"
+#include "../LibraryInterface/BuildIn.h"
 #include "../LibraryInterface/Symbols.h"
 #include "GrammarNode.h"
 
@@ -26,7 +26,13 @@ void ExecutionState::addObject(const std::string &name, Object *object) {
     localObjects.emplace_back(object);
     oldObject = objects[name];
     if (oldObject) {
-        delete(oldObject);
+        for (auto &&i = localObjects.begin(); i != localObjects.end(); ++i) {
+            if (*i == oldObject) {
+                localObjects.erase(i);
+                delete(oldObject);
+                break;
+            }
+        }
     }
     objects[name] = object;
 }
