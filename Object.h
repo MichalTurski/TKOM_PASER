@@ -38,10 +38,11 @@ public:
 
 class Class {
 public:
-    const std::string name;
-    const Object *prototype;
+    std::string name;
+    Object *prototype;
 
     Class(const std::string &name, Object *prototype);
+    Class(Class &&other);
     ~Class();
 };
 

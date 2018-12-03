@@ -12,7 +12,7 @@
 
 int main(int argc, char **argv) {
     if (argc != 3) {
-        std::cerr << "Usage:" << std::endl << argv[0] << " lex|pars file" << std::endl;
+        std::cerr<<"Usage:" <<std::endl << argv[0] << " lex|pars|interpret file" <<std::endl;
         return -1;
     }
 
@@ -33,7 +33,12 @@ int main(int argc, char **argv) {
         Parser parser(src, scaner);
         std::unique_ptr<Program> program = parser.parseProgram();
         program->printValue(0);
+    }  else if (strcmp(argv[1], "interpret") == 0) {
+        Parser parser(src, scaner);
+        std::unique_ptr<Program> program = parser.parseProgram();
+        program->execute();
+        return 40;
     } else {
-        std::cerr<<"Usage:" <<std::endl << argv[0] << " lex|pars file" <<std::endl;
+        std::cerr<<"Usage:" <<std::endl << argv[0] << " lex|pars|interpret file" <<std::endl;
     }
 }

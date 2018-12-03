@@ -463,17 +463,18 @@ std::unique_ptr<LogicExpr> Parser::parseLogicExpr(std::string &name) {
 std::unique_ptr<LogicExpr> Parser::parseLogicExprCmn(std::unique_ptr<CmpExpr> cmpExpr) {
     std::list<std::unique_ptr<CmpExpr>> exprList;
     std::list<TokenType> operators;
+    std::unique_ptr<CmpExpr> currCmpExpr;
     Token *token;
     exprList.push_back(std::move(cmpExpr));
     token = scan.getCurr();
     while (token->type == orOp || token->type == andOp) {
         operators.push_back(token->type);
         scan.next();
-        if (!(cmpExpr = std::move(parseCmpExpr()))) {
+        if (!(currCmpExpr = std::move(parseCmpExpr()))) {
             token = scan.getCurr();
             throw std::runtime_error(*errString(token->begin, "comparison expression", token->string));
         }
-        exprList.push_back(std::move(cmpExpr));
+        exprList.push_back(std::move(currCmpExpr));
         token = scan.getCurr();
     }
     return std::make_unique<LogicExpr>(false, std::move(exprList), std::move(operators));
@@ -499,6 +500,7 @@ std::unique_ptr<CmpExpr> Parser::parseCmpExpr(std::string &name) {
 std::unique_ptr<CmpExpr> Parser::parseCmpExprCmn(std::unique_ptr<AddExpr> addExpr) {
     std::list<std::unique_ptr<AddExpr>> exprList;
     std::list<TokenType> operators;
+    std::unique_ptr<AddExpr> currAddExpr;
     Token *token;
 
     exprList.push_back(std::move(addExpr));
@@ -507,11 +509,11 @@ std::unique_ptr<CmpExpr> Parser::parseCmpExprCmn(std::unique_ptr<AddExpr> addExp
            token->type == moreEqOp || token->type == lessEqOp ){
         operators.push_back(token->type);
         scan.next();
-        if (!(addExpr = std::move(parseAddExpr()))){
+        if (!(currAddExpr = std::move(parseAddExpr()))){
             token = scan.getCurr();
             throw std::runtime_error(*errString(token->begin, "operator", token->string));
         }
-        exprList.push_back(std::move(addExpr));
+        exprList.push_back(std::move(currAddExpr));
         token = scan.getCurr();
     }
     return std::make_unique<CmpExpr> (std::move(exprList), std::move(operators));
@@ -536,6 +538,7 @@ std::unique_ptr<AddExpr> Parser::parseAddExpr(std::string &name) {
 std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multExpr) {
     std::list<std::unique_ptr<MultExpr>> exprList;
     std::list<TokenType> operators;
+    std::unique_ptr<MultExpr> currMultExpr;
     Token *token;
 
     exprList.push_back(std::move(multExpr));
@@ -543,11 +546,11 @@ std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multE
     while (token->type == addOp || token->type == subOp) {
         operators.push_back(token->type);
         scan.next();
-        if (!(multExpr = std::move(parseMultExpr()))){
+        if (!(currMultExpr = std::move(parseMultExpr()))){
             token = scan.getCurr();
             throw std::runtime_error(*errString(token->begin, "multiplication expression", token->string));
         }
-        exprList.push_back(std::move(multExpr));
+        exprList.push_back(std::move(currMultExpr));
         token = scan.getCurr();
     }
     return std::make_unique<AddExpr> (std::move(exprList), std::move(operators));
@@ -572,6 +575,7 @@ std::unique_ptr<MultExpr> Parser::parseMultExpr(std::string &name) {
 std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<ExprArgument> argument) {
     std::list<std::unique_ptr<ExprArgument>> exprList;
     std::list<TokenType> operators;
+    std::unique_ptr<ExprArgument> currArgument;
     Token *token;
 
     exprList.push_back(std::move(argument));
@@ -579,11 +583,11 @@ std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<ExprArgument>
     while (token->type == multOp || token->type == divOp) {
         operators.push_back(token->type);
         scan.next();
-        if (!(argument = std::move(parseExprArgument()))){
+        if (!(currArgument = std::move(parseExprArgument()))){
             token = scan.getCurr();
             throw std::runtime_error(*errString(token->begin, "argument", token->string));
         }
-        exprList.push_back(std::move(argument));
+        exprList.push_back(std::move(currArgument));
         token = scan.getCurr();
     }
     return std::make_unique<MultExpr> (std::move(exprList), std::move(operators));
@@ -662,9 +666,11 @@ std::unique_ptr<Variable> Parser::parseVariable() {
 
 std::unique_ptr<ConstNum> Parser::parseNumber() {
     Token *token = scan.getCurr();
+    int value;
     if (token->type == number) {
+        value = atoi(token->string.c_str());
         scan.next();
-        return std::make_unique<ConstNum>(atoi(token->string.c_str()));
+        return std::make_unique<ConstNum>(value);
     }
     return nullptr;
 }

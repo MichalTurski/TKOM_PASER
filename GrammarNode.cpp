@@ -520,7 +520,7 @@ void Program::printValue(int setw) const {
         i->printValue(setw + 4);
     }
     std::cout << std::string(setw, ' ') << "}" << std::endl;
-    std::cout << std::string(setw, ' ') << "grous {" << std::endl;
+    std::cout << std::string(setw, ' ') << "groups {" << std::endl;
     for (auto &&i: groups) {
         i->printValue(setw + 4);
     }
