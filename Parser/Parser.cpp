@@ -534,8 +534,14 @@ std::unique_ptr<CmpExpr> Parser::parseCmpExprCmn(std::unique_ptr<AddExpr> addExp
 
 std::unique_ptr<AddExpr> Parser::parseAddExpr() {
     std::unique_ptr<MultExpr> multExpr;
+    bool negated = false;
+    Token *token = scan.getCurr();
+    if (token->type == subOp) {
+        negated = true;
+        scan.next();
+    }
     if (multExpr = parseMultExpr()) {
-        return parseAddExprCmn(std::move(multExpr));
+        return parseAddExprCmn(std::move(multExpr), negated);
     }
     return nullptr;
 }
@@ -543,12 +549,12 @@ std::unique_ptr<AddExpr> Parser::parseAddExpr() {
 std::unique_ptr<AddExpr> Parser::parseAddExpr(std::string &name) {
     std::unique_ptr<MultExpr> multExpr;
     if (multExpr = parseMultExpr(name)) {
-        return parseAddExprCmn(std::move(multExpr));
+        return parseAddExprCmn(std::move(multExpr), false);
     }
     return nullptr;
 }
 
-std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multExpr) {
+std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multExpr, bool negated) {
     std::list<std::unique_ptr<MultExpr>> exprList;
     std::list<TokenType> operators;
     std::unique_ptr<MultExpr> currMultExpr;
@@ -567,7 +573,7 @@ std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multE
         exprList.push_back(std::move(currMultExpr));
         token = scan.getCurr();
     }
-    return std::make_unique<AddExpr>(textPos, std::move(exprList), std::move(operators));
+    return std::make_unique<AddExpr>(textPos, negated, std::move(exprList), std::move(operators));
 }
 
 std::unique_ptr<MultExpr> Parser::parseMultExpr() {

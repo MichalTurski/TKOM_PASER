@@ -225,6 +225,10 @@ Token Scaner::getString(int first) {
     c = src.getChar();
     src.moveForward();
     while (c != '"') {
+        if (c == '/') {
+            c = src.getChar();
+            src.moveForward();
+        }
         curString += (char) c;
         c = src.getChar();
         src.moveForward();
@@ -233,24 +237,6 @@ Token Scaner::getString(int first) {
     token.string = std::move(curString);
     return (token);
 }
-
-/*while (isspace(c) || c == '/') {
-    if (isspace(c)) {
-        src.moveForward();
-        c = src.getChar();
-    } else { //Comment or div operator
-        curr.begin = src.getTexstPos();
-        src.moveForward();
-        if (src.getChar() == '*') {
-            skipComment();
-            c = src.getChar();
-        } else {
-            curr.type = divOp;
-            curr.string = "/";
-            return &curr;
-        }
-    }
-}*/
 int Scaner::skipUnused() {
     int c = src.getChar();
     src.moveForward();

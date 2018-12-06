@@ -310,8 +310,9 @@ Object *CmpExpr::evaluate(ExecutionState &state) {
     }
     return object;
 }
-AddExpr::AddExpr(const TextPos &textPos, std::list<std::unique_ptr<MultExpr>> &&exprList,
+AddExpr::AddExpr(const TextPos &textPos, bool negated, std::list<std::unique_ptr<MultExpr>> &&exprList,
         std::list<TokenType> &&operators): Node(textPos),
+                                           negated(negated),
                                            exprList(std::move(exprList)),
                                            operators(operators){}
 Object *AddExpr::evaluate(ExecutionState &state) {
@@ -319,6 +320,14 @@ Object *AddExpr::evaluate(ExecutionState &state) {
     Num *curr, *accumulator;
     auto exprIter = exprList.begin();
     object = (*exprIter)->evaluate(state);
+    if (negated) {
+        if (accumulator = dynamic_cast<Num *>(object)) {
+            accumulator->value = - accumulator->value;
+            object = accumulator;
+        } else {
+            error("Can't negate not-Num object.");
+        }
+    }
     if(!operators.empty()) {
         if (accumulator = dynamic_cast<Num *>(object)) {
             if (!accumulator->Anonymous()) {
@@ -345,7 +354,7 @@ Object *AddExpr::evaluate(ExecutionState &state) {
             }
             object = accumulator;
         } else {
-            error("Can't add not-Num object.");
+            error("Can't add or subtract not-Num object.");
         }
     }
     return object;
@@ -409,14 +418,7 @@ Object *MethodCall::evaluate(ExecutionState &state) {
             argObjects.emplace_back(argumentPtr);
         }
         return object->evaluateMethod(method, argObjects);
-    }/* else {
-        try {
-            GroupDefinition &group = state.getGroup(object);
-            return group.executeMethod(state, method, arguments);
-        } catch (std::runtime_error &except) {
-            error(except.what());
-        }
-    }*/
+    }
     error("There is not such an object.");
 }
 void MethodCall::execute(ExecutionState &state) {
@@ -499,14 +501,6 @@ void Node::error(const char *msg) {
     ss << "Can't execute code in line " << textPos.line << " column " << textPos.num << std::endl;
     ss << msg << std::endl;
     throw std::runtime_error(ss.str());
-       /*
-    std::string errorMsg = "Can't execute code in line " + textPos.line;
-    errorMsg += " column " + textPos.num;
-    errorMsg += "\n";
-    errorMsg += msg;
-    errorMsg += "\n";
-    throw std::runtime_error(errorMsg);
-        */
 }
 
 void Variable::printValue(int setw) const {

@@ -38,7 +38,7 @@ class Parser {
     std::unique_ptr<CmpExpr> parseCmpExprCmn(std::unique_ptr<AddExpr> addExpr);
     std::unique_ptr<AddExpr> parseAddExpr();
     std::unique_ptr<AddExpr> parseAddExpr(std::string &name);
-    std::unique_ptr<AddExpr> parseAddExprCmn(std::unique_ptr<MultExpr> multExpr);
+    std::unique_ptr<AddExpr> parseAddExprCmn(std::unique_ptr<MultExpr> multExpr, bool negated);
     std::unique_ptr<MultExpr> parseMultExpr();
     std::unique_ptr<MultExpr> parseMultExpr(std::string &name);
     std::unique_ptr<MultExpr> parseMultExprCmn(std::unique_ptr<ExprArgument> argument);

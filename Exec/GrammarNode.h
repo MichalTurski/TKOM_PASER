@@ -115,8 +115,9 @@ class AddExpr: public Node {
 private:
     std::list<std::unique_ptr<MultExpr>> exprList;
     std::list<TokenType> operators;
+    bool negated;
 public:
-    AddExpr(const TextPos &textPos, std::list<std::unique_ptr<MultExpr>> &&exprList,
+    AddExpr(const TextPos &textPos, bool negated, std::list<std::unique_ptr<MultExpr>> &&exprList,
             std::list<TokenType> &&operators);
     void printValue(int setw) const override;
     Object *evaluate(ExecutionState &state);
