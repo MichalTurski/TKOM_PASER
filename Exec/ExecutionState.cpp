@@ -34,32 +34,12 @@ void ExecutionState::addObject(const std::string &name, Object *object) {
     localObjects.emplace_back(object);
     Object **pObject = &localObjects.back();
     handleObject(name, pObject);
-    /* In fact, we shouldn't allow to overwrite variable, hence we remove this code */
-    /*Object *oldObject = *objects[name];
-    if (oldObject) {
-        for (auto &&i = localObjects.begin(); i != localObjects.end(); ++i) {
-            if (*i == oldObject) {
-                localObjects.erase(i);
-                delete(oldObject);
-                break;
-            }
-        }
-    }
-    objects[name] = object;*/
 }
 void ExecutionState::modifyObject(const std::string &name, Object *object) {
     Object **pObject = objects[name];
     if (pObject) {
         delete *pObject;
         *pObject = object;
-        /*for (auto &&i = localObjects.begin(); i != localObjects.end(); ++i) {
-            if (*i == *pObject) {
-                localObjects.erase(i);
-                delete(*pObject);
-                localObjects.emplace_back(object)
-                objects[name] = &localObjects.back();
-            }
-        }*/
     } else {
         throw std::runtime_error("There is no object called " + name);
     }

@@ -50,7 +50,6 @@ struct Token {
     std::string string;
     TokenType type;
     TextPos begin;
-//    TextPos end;
 };
 
 class Scaner {
@@ -59,10 +58,11 @@ private:
     std::map<std::string, enum TokenType> kwMap;
     Token curr;
 
-    Token getIdent();
-    Token getNum();
-    Token getOperator();
-    Token getString();
+    Token getIdent(int first);
+    Token getNum(int first);
+    Token getOperator(int first);
+    Token getString(int first);
+    int skipUnused(); /* Returns first character after unused part. */
     void skipComment();
 public:
     explicit Scaner(Source& src);
