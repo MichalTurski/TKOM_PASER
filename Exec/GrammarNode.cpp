@@ -5,6 +5,7 @@
 #include <iostream>
 #include <assert.h>
 #include <dlfcn.h>
+#include <sstream>
 
 #include "GrammarNode.h"
 #include "../LibraryInterface/BuildIn.h"
@@ -15,15 +16,15 @@
 
 Symbols symbols;
 
+Program::Program(const TextPos &textPos, std::list<std::unique_ptr<FunctionDefinition>> &&functions,
+        std::list<std::unique_ptr<GroupDefinition>> &&groups,
+        std::unique_ptr<InstructionSet> &&instructionSet):
+        Node(textPos),
+        functions(std::move(functions)),
+        groups(std::move(groups)),
+        instructionSet(std::move(instructionSet)) {};
 Program::~Program() {
-//    void (*free)(void);
-//    char *errStr;
-//
     for (auto &&lib :libraries) {
-        /* *(void**)(&free) = dlsym(lib, "destroy");
-        if (errStr = dlerror()) {
-            error(errStr);
-        }*/
         dlclose(lib);
     }
 }
@@ -36,11 +37,9 @@ int Program::execute(const std::list<std::string> &libNames) {
     for (auto &&function : functions){
         symbols.addLocalFunction(*function);
     }
-    /* TODO:
     for (auto &&group : groups){
-        state.variables.addGroup(*group);
-        group->init(state);
-    }*/
+        state.addGroup(*group);
+    }
     instructionSet->execute(state);
     if (state.isReturning()) {
         Object *retObj = state.getReturn();
@@ -69,21 +68,47 @@ void Program::loadLibrary(const std::string &name) {
     }
     error(errStr);
 }
+GroupDefinition::GroupDefinition(const TextPos &textPos, std::string &&name,
+                                 std::list<std::unique_ptr<VariableDefinition>> &&fieldsList,
+                                 std::list<std::unique_ptr<FunctionDefinition>> &&methodsList):
+                                    Node(textPos),
+                                    name(std::move(name)),
+                                    fieldsList(std::move(fieldsList)),
+                                    methodsList(std::move(methodsList)){}
+FunctionDefinition::FunctionDefinition(const TextPos &textPos, std::string &&name,
+                   std::list<std::unique_ptr<ArgumentPair>> &&argumentsList,
+                   std::unique_ptr<InstructionSet> &&body):
+                        Node(textPos),
+                        name(std::move(name)),
+                        argumentsList(std::move(argumentsList)),
+                        body(std::move(body)) {}
 Object *FunctionDefinition::evaluate(Objects &arguments) {
     ExecutionState calleeState;
-    calleeState.addObjects(arguments, argumentsList);
+    calleeState.handleObjects(arguments, argumentsList);
     body->execute(calleeState);
     return calleeState.getReturn();
+}
+Object* FunctionDefinition::evaluate(Objects &arguments, ExecutionState &state) {
+    state.handleObjects(arguments, argumentsList);
+    body->execute(state);
+    return state.getReturn();
 }
 std::string& FunctionDefinition::getName() {
     return name;
 }
+ArgumentPair::ArgumentPair(const TextPos &textPos, std::string &&type, std::string &&name):
+        Node(textPos),
+        type(type),
+        name(name) {}
 const std::string& ArgumentPair::getType() const {
     return type;
 }
 const std::string& ArgumentPair::getName() const {
     return name;
 }
+InstructionSet::InstructionSet(const TextPos &textPos, std::list<std::unique_ptr<Statement>> &&statements):
+        Node(textPos),
+        statements(std::move(statements)){}
 void InstructionSet::execute(ExecutionState &state) {
     for (auto &i: statements) {
         i->execute(state);
@@ -92,9 +117,28 @@ void InstructionSet::execute(ExecutionState &state) {
         }
     }
 }
+ReturnStatement::ReturnStatement(const TextPos &textPos, std::unique_ptr<LogicExpr> value):
+        Statement(textPos),
+        Node(textPos),
+        expr(std::move(value)) {}
 void ReturnStatement::execute(ExecutionState &state) {
     state.setReturn(expr->evaluate(state));
 }
+ForStatement::ForStatement(const TextPos &textPos, std::string &&iterName, std::string &&variable,
+             std::unique_ptr<InstructionSet> &&body): Statement(textPos),
+                                                      Node(textPos),
+                                                      iteratorName(iterName),
+                                                      variable(variable),
+                                                      body(std::move(body)) {}
+void ForStatement::execute(ExecutionState &state) {
+    //TODO
+}
+IfStatement::IfStatement(const TextPos &textPos, std::unique_ptr<LogicExpr> &&condition,
+                         std::unique_ptr<InstructionSet> &&body):
+        Statement(textPos),
+        Node(textPos),
+        condition(std::move(condition)),
+        body(std::move(body)) {}
 void IfStatement::execute(ExecutionState &state) {
     Object *conditionObj = condition->evaluate(state);
     Num *conditionVal;
@@ -106,19 +150,13 @@ void IfStatement::execute(ExecutionState &state) {
         error("Improper type of condition");
     }
 }
-void ForStatement::execute(ExecutionState &state) {
-    //TODO
-}
-void Assignment::execute(ExecutionState &state) {
-    Object *object;
-    object = rVal->evaluate(state);
-    if (object) {
-        object->makeNamed(); /* Make object not anonymous to avoid freeing its memory */
-        state.addObject(lVal, object);
-    } else {
-        error("Can't assign invalid object.");
-    }
-}
+VariableDefinition::VariableDefinition(const TextPos &textPos, std::string &&type,
+                                       std::string &&name, std::string &&reference):
+        Instruction(textPos),
+        Node(textPos),
+        type(type),
+        name(name),
+        reference(reference){}
 void VariableDefinition::execute(ExecutionState &state) {
     Object *newObject;
     if (!(newObject = symbols.createObject(type, reference))) {
@@ -126,6 +164,58 @@ void VariableDefinition::execute(ExecutionState &state) {
     }
     state.addObject(name, newObject);
 }
+const std::string& VariableDefinition::getType() const {
+    return type;
+}
+const std::string& VariableDefinition::getName() const {
+    return name;
+}
+Assignment::Assignment(const TextPos &textPos, std::string &&lVal, std::unique_ptr<LogicExpr> &&rVal):
+        Instruction(textPos),
+        Node(textPos),
+        lVal(lVal),
+        rVal(std::move(rVal)) {}
+void Assignment::execute(ExecutionState &state) {
+    Object *object;
+    object = rVal->evaluate(state);
+    if (object) {
+        object->makeNamed(); /* Make object not anonymous to avoid freeing its memory */
+        state.modifyObject(lVal, object);
+//        state.addObject(lVal, object);
+    } else {
+        error("Can't assign invalid object.");
+    }
+}
+MethodRef::MethodRef(const TextPos &textPos, std::string &&group, std::string &&method):
+        ExprArgument(textPos),
+        Node(textPos),
+        object(std::move(group)),
+        method(std::move(method)){}
+Object* MethodRef::evaluate(ExecutionState &state) {
+    Reference *reference = new(Reference);
+    Object *objectPtr = state.getObject(this->object);
+    if (objectPtr == nullptr) {
+        error("Not such a object");
+    }
+    reference->setName(method);
+    reference->setObject(objectPtr);
+    return reference;
+}
+FunctionRef::FunctionRef(const TextPos &textPos, std::string &&name):
+        ExprArgument(textPos),
+        Node(textPos),
+        name(std::move(name)){}
+Object* FunctionRef::evaluate(ExecutionState &state) {
+    Reference *reference = new(Reference);
+    reference->setName(name);
+    return reference;
+}
+LogicExpr::LogicExpr(const TextPos &textPos, bool negated, std::list<std::unique_ptr<CmpExpr>> &&exprList,
+          std::list<TokenType> &&operators): ExprArgument(textPos),
+                                             Node(textPos),
+                                             negated(negated),
+                                             exprList(std::move(exprList)),
+                                             operators(operators){}
 Object *LogicExpr::evaluate(ExecutionState &state) {
     Object *object;
     Num *curr, *accumulator;
@@ -168,6 +258,10 @@ Object *LogicExpr::evaluate(ExecutionState &state) {
 void  LogicExpr::negate() {
     negated = !negated;
 }
+CmpExpr::CmpExpr(const TextPos &textPos, std::list<std::unique_ptr<AddExpr>> &&exprList,
+        std::list<TokenType> &&operators): Node(textPos),
+                                           exprList(std::move(exprList)),
+                                           operators(operators){}
 Object *CmpExpr::evaluate(ExecutionState &state) {
     Object *object;
     Num *curr, *accumulator;
@@ -216,6 +310,10 @@ Object *CmpExpr::evaluate(ExecutionState &state) {
     }
     return object;
 }
+AddExpr::AddExpr(const TextPos &textPos, std::list<std::unique_ptr<MultExpr>> &&exprList,
+        std::list<TokenType> &&operators): Node(textPos),
+                                           exprList(std::move(exprList)),
+                                           operators(operators){}
 Object *AddExpr::evaluate(ExecutionState &state) {
     Object *object;
     Num *curr, *accumulator;
@@ -252,6 +350,10 @@ Object *AddExpr::evaluate(ExecutionState &state) {
     }
     return object;
 }
+MultExpr::MultExpr(const TextPos &textPos, std::list<std::unique_ptr<ExprArgument>> &&exprList,
+         std::list<TokenType> &&operators): Node(textPos),
+                                            exprList(std::move(exprList)),
+                                            operators(std::move(operators)){}
 Object *MultExpr::evaluate(ExecutionState &state) {
     Object *object;
     Num *curr, *accumulator;
@@ -288,18 +390,25 @@ Object *MultExpr::evaluate(ExecutionState &state) {
     }
     return object;
 }
+MethodCall::MethodCall(const TextPos &textPos, std::string &&object, std::string &&method, std::list<std::unique_ptr<Variable>> &&args):
+        Instruction(textPos),
+        ExprArgument(textPos),
+        Node(textPos),
+        objectName(std::move(object)),
+        method(std::move(method)),
+        arguments(std::move(args)) {}
 Object *MethodCall::evaluate(ExecutionState &state) {
-    Object *objectPtr, *argument;
+    Object *object, **argumentPtr;
     Objects argObjects;
-    if (objectPtr = state.getObject(object)) {
+    if (object = state.getObject(objectName)) {
         for (auto &&i : arguments) {
-            argument = state.getObject(i->getName());
-            if (argument == nullptr) {
+            argumentPtr = state.getObjectPtr(i->getName());
+            if (argumentPtr == nullptr) {
                 error("Wrong argument name.");
             }
-            argObjects.emplace_back(argument);
+            argObjects.emplace_back(argumentPtr);
         }
-        return objectPtr->evaluateMethod(method, argObjects);
+        return object->evaluateMethod(method, argObjects);
     }/* else {
         try {
             GroupDefinition &group = state.getGroup(object);
@@ -317,16 +426,22 @@ void MethodCall::execute(ExecutionState &state) {
         delete (obj);
     }
 }
+FunctionCall::FunctionCall(const TextPos &textPos, std::string &&name, std::list<std::unique_ptr<Variable>> &&arguments):
+        Instruction(textPos),
+        ExprArgument(textPos),
+        Node(textPos),
+        name(name),
+        arguments(std::move(arguments)) {}
 Object* FunctionCall::evaluate(ExecutionState &state) {
-    Object *referenceObj, *argument;
+    Object *referenceObj, **argumentPtr;
     Objects argObjects;
     Function *function;
     for (auto &&i : arguments) {
-        argument = state.getObject(i->getName());
-        if (argument == nullptr) {
+        argumentPtr = state.getObjectPtr(i->getName());
+        if (argumentPtr == nullptr) {
             error("Wrong argument name.");
         }
-        argObjects.emplace_back(argument);
+        argObjects.emplace_back(argumentPtr);
     }
     if ((referenceObj = state.getObject(name)) && (referenceObj->getType() == "Reference")) {
         return referenceObj->evaluateMethod("evaluate", argObjects);
@@ -343,31 +458,28 @@ void FunctionCall::execute(ExecutionState &state) {
         delete (obj);
     }
 }
-Object* FunctionRef::evaluate(ExecutionState &state) {
-    Reference *reference = new(Reference);
-    reference->setName(name);
-    return reference;
-}
-Object* MethodRef::evaluate(ExecutionState &state) {
-    Reference *reference = new(Reference);
-    Object *objectPtr = state.getObject(this->object);
-    if (objectPtr == nullptr) {
-        error("Not such a object");
-    }
-    reference->setName(method);
-    reference->setObject(objectPtr);
-    return reference;
-}
+ConstString::ConstString(const TextPos &textPos, std::string &&value):
+        ExprArgument(textPos),
+        Node(textPos),
+        value(value) {}
 Object *ConstString::evaluate(ExecutionState &state) {
     String *string = new(String);
     string->value = value;
     return string;
 }
+ConstNum::ConstNum(const TextPos &textPos, int val):
+        Node(textPos),
+        ExprArgument(textPos),
+        value(val) {}
 Object *ConstNum::evaluate(ExecutionState &state) {
     Num *num = new(Num);
     num->value = value;
     return num;
 }
+Variable::Variable(const TextPos &textPos, std::string &&name):
+        ExprArgument(textPos),
+        Node(textPos),
+        name(name) {}
 Object *Variable::evaluate(ExecutionState &state) {
     Object *obj;
     if (obj = state.getObject(name)) {
@@ -379,13 +491,22 @@ const std::string &Variable::getName() const {
     return name;
 }
 
+const TextPos& Node::getTextPos() const {
+    return textPos;
+}
 void Node::error(const char *msg) {
+    std::stringstream ss;
+    ss << "Can't execute code in line " << textPos.line << " column " << textPos.num << std::endl;
+    ss << msg << std::endl;
+    throw std::runtime_error(ss.str());
+       /*
     std::string errorMsg = "Can't execute code in line " + textPos.line;
     errorMsg += " column " + textPos.num;
     errorMsg += "\n";
     errorMsg += msg;
     errorMsg += "\n";
     throw std::runtime_error(errorMsg);
+        */
 }
 
 void Variable::printValue(int setw) const {
@@ -411,7 +532,7 @@ void ConstString::printValue(int setw) const {
 }
 void MethodCall::printValue(int setw) const {
     std::cout << std::string(setw, ' ') << "Node type = MethodCall" << std::endl;
-    std::cout << std::string(setw, ' ') << "object name = " << object << std::endl;
+    std::cout << std::string(setw, ' ') << "object name = " << objectName << std::endl;
     std::cout << std::string(setw, ' ') << "method name = " << method << std::endl;
     std::cout << std::string(setw, ' ') << "arguments: {" << std::endl;
     for (auto &&i: arguments) {

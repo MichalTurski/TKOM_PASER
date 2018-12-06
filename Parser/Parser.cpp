@@ -24,6 +24,7 @@ std::unique_ptr<Program> Parser::parseProgram() {
     std::unique_ptr<InstructionSet> instructionSet;
     std::list<std::unique_ptr<GroupDefinition>> groupsDefinitions;
     std::unique_ptr<GroupDefinition> groupDef;
+    TextPos textPos = scan.getCurr()->begin;
     while (funDef = std::move(parseFunctionDefinition())) {
         functionDefinitions.emplace_back(std::move(funDef));
     }
@@ -33,7 +34,7 @@ std::unique_ptr<Program> Parser::parseProgram() {
     if (!(instructionSet = parseInstructionSet())) {
         return (nullptr);
     } else {
-        return (std::make_unique<Program>(std::move(functionDefinitions), std::move(groupsDefinitions),
+        return (std::make_unique<Program>(textPos, std::move(functionDefinitions), std::move(groupsDefinitions),
                                           std::move(instructionSet)));
     }
 }
@@ -46,6 +47,7 @@ std::unique_ptr<FunctionDefinition> Parser::parseFunctionDefinition() {
     if (token->type != functionKw){
         return nullptr;
     }
+    TextPos textPos = token->begin;
     token = scan.next();
     if (token->type == identifier){
         name = std::move(token->string);
@@ -58,7 +60,7 @@ std::unique_ptr<FunctionDefinition> Parser::parseFunctionDefinition() {
                     token = scan.getCurr();
                     if (token->type == rBrace) {
                         scan.next();
-                        return std::make_unique<FunctionDefinition>(std::move(name), std::move(*argumentsList),
+                        return std::make_unique<FunctionDefinition>(textPos, std::move(name), std::move(*argumentsList),
                                                                     std::move(instructionSet));
                     } else {
                         throw std::runtime_error(
@@ -90,6 +92,7 @@ std::unique_ptr<GroupDefinition> Parser::parseGroupDefinition() {
 
     token = scan.getCurr();
     if (token->type == groupKw) {
+        TextPos textPos = token->begin;
         token = scan.next();
         if (token->type == identifier){
             name = std::move(token->string);
@@ -110,7 +113,7 @@ std::unique_ptr<GroupDefinition> Parser::parseGroupDefinition() {
                 token = scan.getCurr();
                 if (token->type == rBrace) {
                     scan.next();
-                    return std::make_unique<GroupDefinition>(std::move(name), std::move(varDefinitions),
+                    return std::make_unique<GroupDefinition>(textPos, std::move(name), std::move(varDefinitions),
                             std::move(methodDefinitions));
                 }
                 throw std::runtime_error(*errString(token->begin, "}", token->string));
@@ -166,12 +169,13 @@ std::unique_ptr<ArgumentPair> Parser::parseArgumentPair() {
     std::unique_ptr<ArgumentPair> pair = nullptr;
     Token *token = scan.getCurr();
     if (token->type == identifier) {
+        TextPos textPos = token->begin;
         type = std::move(token->string);
         token = scan.next();
         if (token->type == identifier) {
             name = std::move(token->string);
             scan.next();
-            pair = std::make_unique<ArgumentPair> (std::move(type), std::move(name));
+            pair = std::make_unique<ArgumentPair> (textPos, std::move(type), std::move(name));
         } else {
             throw std::runtime_error(
                     *errString(token->begin, "variable name", token->string));
@@ -187,6 +191,7 @@ std::unique_ptr<InstructionSet> Parser::parseInstructionSet() {
     std::unique_ptr<Statement> currStatement;
     std::list<std::unique_ptr<Statement>> statements;
     Token *token = scan.getCurr();
+    TextPos textPos = token->begin;
     do {
         switch (token->type) {
             case ifKw:
@@ -209,7 +214,7 @@ std::unique_ptr<InstructionSet> Parser::parseInstructionSet() {
         statements.push_back(std::move(currStatement));
         token = scan.getCurr();
     } while (!(token->type == rBrace || token->type == eof));
-    return std::make_unique<InstructionSet> (std::move(statements));
+    return std::make_unique<InstructionSet> (textPos, std::move(statements));
 }
 
 std::unique_ptr<IfStatement> Parser::parseIfStatement() {
@@ -217,6 +222,7 @@ std::unique_ptr<IfStatement> Parser::parseIfStatement() {
     std::unique_ptr<LogicExpr> cond;
 
     Token *token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == ifKw) {
         token = scan.next();
         if (token->type == lPar) {
@@ -232,7 +238,7 @@ std::unique_ptr<IfStatement> Parser::parseIfStatement() {
                         if (token->type == rBrace) {
                             scan.next();
                             return std::make_unique<IfStatement>
-                                    (std::move(cond), std::move(body));
+                                    (textPos, std::move(cond), std::move(body));
                         } else {
                             throw std::runtime_error(
                                     *errString(token->begin, "}", token->string));
@@ -263,6 +269,7 @@ std::unique_ptr<ForStatement> Parser::parseForStatement() {
     std::unique_ptr<InstructionSet> body;
     std::string iterator, variable;
     Token *token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == forKw) {
         token = scan.next();
         if (token->type == eachKw) {
@@ -282,7 +289,7 @@ std::unique_ptr<ForStatement> Parser::parseForStatement() {
                             if (token->type == rBrace) {
                                 scan.next();
                                 return  std::make_unique<ForStatement>
-                                        (std::move(iterator), std::move(variable),
+                                        (textPos, std::move(iterator), std::move(variable),
                                          std::move(body));
                             } else {
                                 throw std::runtime_error(
@@ -317,6 +324,7 @@ std::unique_ptr<ForStatement> Parser::parseForStatement() {
 std::unique_ptr<ReturnStatement> Parser::parseReturnStatement() {
     std::unique_ptr<LogicExpr> value;
     Token *token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == returnKw) {
         token = scan.next();
         if (token->type == lPar) {
@@ -327,7 +335,7 @@ std::unique_ptr<ReturnStatement> Parser::parseReturnStatement() {
                 token = scan.next();
                 if (token->type == colon) {
                     scan.next();
-                    return std::make_unique<ReturnStatement> (std::move(value));
+                    return std::make_unique<ReturnStatement> (textPos, std::move(value));
                 } else {
                     throw std::runtime_error(
                             *errString(token->begin, ";", token->string));
@@ -381,11 +389,12 @@ std::unique_ptr<Assignment> Parser::parseAssignment(std::string &name) {
     std::unique_ptr<LogicExpr> rVal;
     Token *token;
     token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == assignOp) {
         lVal = std::move(name);
         token = scan.next();
         if (rVal = std::move(parseLogicExpr())) {
-            return std::make_unique<Assignment>(std::move(lVal), std::move(rVal));
+            return std::make_unique<Assignment>(textPos, std::move(lVal), std::move(rVal));
         } else {
             throw std::runtime_error(*errString(token->begin, "logic expression", token->string));
         }
@@ -397,6 +406,7 @@ std::unique_ptr<VariableDefinition> Parser::parseVariableDefinition() {
     std::string type, varName, reference;
     Token *token;
     token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == identifier) {
         type = std::move(token->string);
         token = scan.next();
@@ -408,7 +418,7 @@ std::unique_ptr<VariableDefinition> Parser::parseVariableDefinition() {
                 scan.next();
             }
             return std::make_unique<VariableDefinition>
-                    (std::move(type), std::move(varName), std::move(reference));
+                    (textPos, std::move(type), std::move(varName), std::move(reference));
         }
         throw std::runtime_error(*errString(token->begin, "variable name", token->string));
     }
@@ -419,6 +429,7 @@ std::unique_ptr<VariableDefinition> Parser::parseVariableDefinition(std::string 
     std::string varName, reference;
     Token *token;
     token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == identifier) {
         varName = std::move(token->string);
         token = scan.next();
@@ -427,7 +438,7 @@ std::unique_ptr<VariableDefinition> Parser::parseVariableDefinition(std::string 
             scan.next();
         }
         return std::make_unique<VariableDefinition>
-                (std::move(name), std::move(varName), std::move(reference));
+                (textPos, std::move(name), std::move(varName), std::move(reference));
     }
     return nullptr;
 }
@@ -454,7 +465,6 @@ std::unique_ptr<LogicExpr> Parser::parseLogicExpr() {
 
 std::unique_ptr<LogicExpr> Parser::parseLogicExpr(std::string &name) {
     std::unique_ptr<CmpExpr> cmpExpr;
-    Token *token;
     if (cmpExpr = parseCmpExpr(name)) {
         return parseLogicExprCmn(std::move(cmpExpr));
     }
@@ -465,6 +475,8 @@ std::unique_ptr<LogicExpr> Parser::parseLogicExprCmn(std::unique_ptr<CmpExpr> cm
     std::list<TokenType> operators;
     std::unique_ptr<CmpExpr> currCmpExpr;
     Token *token;
+    TextPos textPos = cmpExpr->getTextPos();
+
     exprList.push_back(std::move(cmpExpr));
     token = scan.getCurr();
     while (token->type == orOp || token->type == andOp) {
@@ -477,7 +489,7 @@ std::unique_ptr<LogicExpr> Parser::parseLogicExprCmn(std::unique_ptr<CmpExpr> cm
         exprList.push_back(std::move(currCmpExpr));
         token = scan.getCurr();
     }
-    return std::make_unique<LogicExpr>(false, std::move(exprList), std::move(operators));
+    return std::make_unique<LogicExpr>(textPos, false, std::move(exprList), std::move(operators));
 
 }
 
@@ -502,6 +514,7 @@ std::unique_ptr<CmpExpr> Parser::parseCmpExprCmn(std::unique_ptr<AddExpr> addExp
     std::list<TokenType> operators;
     std::unique_ptr<AddExpr> currAddExpr;
     Token *token;
+    TextPos textPos = addExpr->getTextPos();
 
     exprList.push_back(std::move(addExpr));
     token = scan.getCurr();
@@ -516,7 +529,7 @@ std::unique_ptr<CmpExpr> Parser::parseCmpExprCmn(std::unique_ptr<AddExpr> addExp
         exprList.push_back(std::move(currAddExpr));
         token = scan.getCurr();
     }
-    return std::make_unique<CmpExpr> (std::move(exprList), std::move(operators));
+    return std::make_unique<CmpExpr>(textPos, std::move(exprList), std::move(operators));
 }
 
 std::unique_ptr<AddExpr> Parser::parseAddExpr() {
@@ -540,6 +553,7 @@ std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multE
     std::list<TokenType> operators;
     std::unique_ptr<MultExpr> currMultExpr;
     Token *token;
+    TextPos textPos = multExpr->getTextPos();
 
     exprList.push_back(std::move(multExpr));
     token = scan.getCurr();
@@ -553,7 +567,7 @@ std::unique_ptr<AddExpr> Parser::parseAddExprCmn(std::unique_ptr<MultExpr> multE
         exprList.push_back(std::move(currMultExpr));
         token = scan.getCurr();
     }
-    return std::make_unique<AddExpr> (std::move(exprList), std::move(operators));
+    return std::make_unique<AddExpr>(textPos, std::move(exprList), std::move(operators));
 }
 
 std::unique_ptr<MultExpr> Parser::parseMultExpr() {
@@ -577,6 +591,7 @@ std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<ExprArgument>
     std::list<TokenType> operators;
     std::unique_ptr<ExprArgument> currArgument;
     Token *token;
+    TextPos textPos = argument->getTextPos();
 
     exprList.push_back(std::move(argument));
     token = scan.getCurr();
@@ -590,7 +605,7 @@ std::unique_ptr<MultExpr> Parser::parseMultExprCmn(std::unique_ptr<ExprArgument>
         exprList.push_back(std::move(currArgument));
         token = scan.getCurr();
     }
-    return std::make_unique<MultExpr> (std::move(exprList), std::move(operators));
+    return std::make_unique<MultExpr>(textPos, std::move(exprList), std::move(operators));
 }
 
 std::unique_ptr<ExprArgument> Parser::parseExprArgument() {
@@ -650,27 +665,30 @@ std::unique_ptr<ExprArgument> Parser::parseExprArgument(std::string &name) {
 }
 
 std::unique_ptr<Variable> Parser::parseVariable(std::string &name) {
-    return std::make_unique<Variable>(std::move(name));
+    TextPos &textPos = scan.getCurr()->begin;
+    return std::make_unique<Variable>(textPos, std::move(name));
 }
 
 std::unique_ptr<Variable> Parser::parseVariable() {
     std::string name;
     Token *token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == identifier) {
         name = std::move(token->string);
         scan.next();
-        return std::make_unique<Variable>(std::move(name));
+        return std::make_unique<Variable>(textPos, std::move(name));
     }
     return nullptr;
 }
 
 std::unique_ptr<ConstNum> Parser::parseNumber() {
     Token *token = scan.getCurr();
+    TextPos textPos = token->begin;
     int value;
     if (token->type == number) {
         value = atoi(token->string.c_str());
         scan.next();
-        return std::make_unique<ConstNum>(value);
+        return std::make_unique<ConstNum>(textPos, value);
     }
     return nullptr;
 }
@@ -678,11 +696,10 @@ std::unique_ptr<ConstNum> Parser::parseNumber() {
 std::unique_ptr<FunctionCall> Parser::parseFunctionCall(std::string &name) {
     std::list<std::unique_ptr<Variable>> argumentsList;
     std::unique_ptr<std::list<std::unique_ptr<Variable>>> argumentsListPtr;
-    Token *token;
-    token = scan.getCurr();
+    TextPos textPos = scan.getCurr()->begin;
     if (argumentsListPtr = parseCallArguments()) {
         argumentsList = std::move(*argumentsListPtr);
-        return std::make_unique<FunctionCall>(std::move(name), std::move(argumentsList));
+        return std::make_unique<FunctionCall>(textPos, std::move(name), std::move(argumentsList));
     }
     return nullptr;
 }
@@ -694,6 +711,7 @@ std::unique_ptr<MethodCall> Parser::parseMethodCall(std::string &name) {
     std::string methodName;
     Token *token;
     token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == dot) {
         token = scan.next();
         if (token->type == identifier){
@@ -701,7 +719,8 @@ std::unique_ptr<MethodCall> Parser::parseMethodCall(std::string &name) {
             scan.next();
             if (argumentsListPtr = parseCallArguments()) {
                 argumentsList = std::move(*argumentsListPtr);
-                return std::make_unique<MethodCall>(std::move(name), std::move(methodName), std::move(argumentsList));
+                return std::make_unique<MethodCall>(textPos, std::move(name), std::move(methodName),
+                                                    std::move(argumentsList));
             } else {
                 throw std::runtime_error(*errString(token->begin, "arguments list", token->string));
             }
@@ -754,43 +773,23 @@ std::unique_ptr<std::list<std::unique_ptr<Variable>>> Parser::parseCallArguments
 
 std::unique_ptr<Variable> Parser::parseFunArgument() {
     return parseVariable();
-    /*
-    switch (token->type) {
-        case refOp:
-            token = scan.next();
-            if (token->type == identifier) {
-                name = std::move(token->string);
-                scan.next();
-                if (!(argument = parseMethodReference(name))) {
-                    if (!(argument = parseFunReference(name))) {
-                        throw std::runtime_error(*errString(token->begin, "reference", token->string));
-                    }
-                }
-                return argument;
-            }
-            throw std::runtime_error(*errString(token->begin, "identifier", token->string));
-        case string:
-            return parseString();
-        case number:
-            return parseNumber();
-        default:
-            return parseVariable();
-    }*/
 }
 
 std::unique_ptr<FunctionRef> Parser::parseFunReference(std::string &name) {
-    return std::make_unique<FunctionRef>(std::move(name));
+    TextPos &textPos = scan.getCurr()->begin;
+    return std::make_unique<FunctionRef>(textPos, std::move(name));
 }
 
 std::unique_ptr<MethodRef> Parser::parseMethodReference(std::string &name) {
     std::string method;
     Token *token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == dot) {
         token = scan.next();
         if (token->type == identifier) {
             method = std::move(token->string);
             scan.next();
-            return std::make_unique<MethodRef>(std::move(name), std::move(method));
+            return std::make_unique<MethodRef>(textPos, std::move(name), std::move(method));
         }
         throw std::runtime_error(*errString(token->begin, "identifier", token->string));
     }
@@ -799,9 +798,11 @@ std::unique_ptr<MethodRef> Parser::parseMethodReference(std::string &name) {
 
 std::unique_ptr<ConstString> Parser::parseString() {
     Token *token = scan.getCurr();
+    TextPos textPos = token->begin;
     if (token->type == string) {
+        std::string value = std::move(token->string);
         scan.next();
-        return std::make_unique<ConstString>(std::move(token->string));
+        return std::make_unique<ConstString>(textPos, std::move(value));
     }
     return nullptr;
 }

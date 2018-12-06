@@ -6,7 +6,7 @@
 #define PROJEKT_CLASSFACTORY_H
 
 #include <string>
-#include "../LibraryInterface/Object.h"
+#include "Object.h"
 
 class Class {
 public:

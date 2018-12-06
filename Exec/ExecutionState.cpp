@@ -7,6 +7,7 @@
 #include "../LibraryInterface/BuildIn.h"
 #include "../LibraryInterface/Symbols.h"
 #include "GrammarNode.h"
+#include "Group.h"
 
 ExecutionState::~ExecutionState() {
     for (auto&&i : localObjects) {
@@ -14,6 +15,14 @@ ExecutionState::~ExecutionState() {
     }
 }
 Object* ExecutionState::getObject(const std::string &name) {
+    Object **pObject = getObjectPtr(name);
+    if (pObject != nullptr) {
+        return *pObject;
+    } else {
+        return nullptr;
+    }
+}
+Object** ExecutionState::getObjectPtr(const std::string &name) {
     auto&& objectIter = objects.find(name);
     if (objectIter == objects.end()) {
         return nullptr;
@@ -22,9 +31,11 @@ Object* ExecutionState::getObject(const std::string &name) {
     }
 }
 void ExecutionState::addObject(const std::string &name, Object *object) {
-    Object *oldObject;
     localObjects.emplace_back(object);
-    oldObject = objects[name];
+    Object **pObject = &localObjects.back();
+    handleObject(name, pObject);
+    /* In fact, we shouldn't allow to overwrite variable, hence we remove this code */
+    /*Object *oldObject = *objects[name];
     if (oldObject) {
         for (auto &&i = localObjects.begin(); i != localObjects.end(); ++i) {
             if (*i == oldObject) {
@@ -34,18 +45,43 @@ void ExecutionState::addObject(const std::string &name, Object *object) {
             }
         }
     }
-    objects[name] = object;
+    objects[name] = object;*/
 }
-void ExecutionState::addObjects(const Objects &newObjects,
-                                const std::list<std::unique_ptr<ArgumentPair>> &argsNames) {
+void ExecutionState::modifyObject(const std::string &name, Object *object) {
+    Object **pObject = objects[name];
+    if (pObject) {
+        delete *pObject;
+        *pObject = object;
+        /*for (auto &&i = localObjects.begin(); i != localObjects.end(); ++i) {
+            if (*i == *pObject) {
+                localObjects.erase(i);
+                delete(*pObject);
+                localObjects.emplace_back(object)
+                objects[name] = &localObjects.back();
+            }
+        }*/
+    } else {
+        throw std::runtime_error("There is no object called " + name);
+    }
+}
+void ExecutionState::handleObject(const std::string &name, Object **object) {
+    Object **oldObject = objects[name];
+    if (oldObject == nullptr) {
+        objects[name] = object;
+    } else {
+        throw std::runtime_error("Object name already in usage");
+    }
+}
+void ExecutionState::handleObjects(const Objects &newObjects,
+                                   const std::list<std::unique_ptr<ArgumentPair>> &argsNames) {
     auto &&namesIter = argsNames.begin();
     auto &&objectIter = newObjects.begin();
     for (;namesIter != argsNames.end() || objectIter != newObjects.end(); ++namesIter, ++objectIter) {
-        if ((*namesIter)->getType() != (*objectIter)->getType()) {
+        if ((*namesIter)->getType() != (**objectIter)->getType()) {
             throw std::runtime_error("Wrong argument type: expected " + (*namesIter)->getType() +
-                                     "get" + (*objectIter)->getType());
+                                     "get" + (**objectIter)->getType());
         }
-        objects.emplace((*namesIter)->getName(), *objectIter);
+        handleObject((*namesIter)->getName(), *objectIter);
     }
     if (namesIter != argsNames.end()) {
         throw std::runtime_error("Not enough arguments");
@@ -54,7 +90,11 @@ void ExecutionState::addObjects(const Objects &newObjects,
         throw std::runtime_error("Too many arguments");
     }
 }
-
+void ExecutionState::addGroup(GroupDefinition &groupDefinition) {
+    Group *group = new Group(groupDefinition);
+    localObjects.emplace_back(group);
+    handleObject(group->getName(), &localObjects.back());
+}
 bool ExecutionState::isReturning() {
     return retFlag;
 }

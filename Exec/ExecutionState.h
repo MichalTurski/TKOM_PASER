@@ -14,11 +14,12 @@
 #include "../LibraryInterface/Symbols.h"
 
 class ArgumentPair;
+class GroupDefinition;
 
 class ExecutionState {
 private:
     std::list<Object *> localObjects;
-    std::map<std::string, Object*> objects;
+    std::map<std::string, Object**> objects;
 
     Object *retVal = nullptr;
     bool retFlag = false;
@@ -26,11 +27,15 @@ public:
     ~ExecutionState();
 
     Object *getObject(const std::string &name);
+    Object **getObjectPtr(const std::string &name);
 
     void addObject(const std::string &name, Object *object);
+    void modifyObject(const std::string &name, Object *object);
 //    bool addVariable(const std::string &type, const std::string &name,
 //                      const std::string &reference);
-    void addObjects(const Objects &newObjects, const std::list<std::unique_ptr<ArgumentPair>> &argsNames);
+    void handleObject(const std::string &name, Object **object);
+    void handleObjects(const Objects &newObjects, const std::list<std::unique_ptr<ArgumentPair>> &names);
+    void addGroup(GroupDefinition &groupDefinition);
 
     bool isReturning();
     void setReturn(Object *object);

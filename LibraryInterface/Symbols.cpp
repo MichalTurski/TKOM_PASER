@@ -16,9 +16,6 @@ Symbols::Symbols() {
     classFactory.addClass("String", stringPrototype);
 }
 Symbols::~Symbols() {
-    /*for (auto &&i : localFunctions) {
-        delete i.second;
-    }*/
     for (auto &&i : externFunctions) {
         delete i.second;
     }

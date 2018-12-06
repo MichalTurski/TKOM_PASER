@@ -17,7 +17,7 @@ class Object;
 class ExternFunction;
 
 using methodsMap = std::map<std::string, ExternFunction>;
-using Objects = std::list<Object *>;
+using Objects = std::list<Object **>;
 
 
 class Object {
