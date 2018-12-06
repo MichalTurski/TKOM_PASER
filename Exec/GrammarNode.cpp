@@ -13,6 +13,7 @@
 #include "ExecutionState.h"
 #include "../LibraryInterface/Function.h"
 #include "Reference.h"
+#include "Collection.h"
 
 Symbols symbols;
 
@@ -131,7 +132,20 @@ ForStatement::ForStatement(const TextPos &textPos, std::string &&iterName, std::
                                                       variable(variable),
                                                       body(std::move(body)) {}
 void ForStatement::execute(ExecutionState &state) {
-    //TODO
+    Object **currObject;
+    Object *collObject = state.getObject(variable);
+    if (Collection *collection = dynamic_cast<Collection*>(collObject)) {
+        while (currObject = collection->iterate()) {
+            state.handleObject(iteratorName, currObject);
+            body->execute(state);
+            if (state.isReturning()) {
+                return;
+            }
+            state.removeObject(iteratorName);
+        }
+    } else {
+        error("Can't iterate through not-collection object.");
+    }
 }
 IfStatement::IfStatement(const TextPos &textPos, std::unique_ptr<LogicExpr> &&condition,
                          std::unique_ptr<InstructionSet> &&body):
@@ -142,9 +156,12 @@ IfStatement::IfStatement(const TextPos &textPos, std::unique_ptr<LogicExpr> &&co
 void IfStatement::execute(ExecutionState &state) {
     Object *conditionObj = condition->evaluate(state);
     Num *conditionVal;
-    if (conditionVal = dynamic_cast<Num *>(conditionVal)) {
+    if (conditionVal = dynamic_cast<Num *>(conditionObj)) {
         if (conditionVal->value > 0) {
             body->execute(state);
+        }
+        if (conditionObj->Anonymous()) {
+            delete(conditionObj);
         }
     } else {
         error("Improper type of condition");
@@ -417,7 +434,11 @@ Object *MethodCall::evaluate(ExecutionState &state) {
             }
             argObjects.emplace_back(argumentPtr);
         }
-        return object->evaluateMethod(method, argObjects);
+        try {
+            return object->evaluateMethod(method, argObjects);
+        } catch (std::runtime_error &exception) {
+            error(exception.what());
+        }
     }
     error("There is not such an object.");
 }

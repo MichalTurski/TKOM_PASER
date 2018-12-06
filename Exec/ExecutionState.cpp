@@ -75,6 +75,14 @@ void ExecutionState::addGroup(GroupDefinition &groupDefinition) {
     localObjects.emplace_back(group);
     handleObject(group->getName(), &localObjects.back());
 }
+void ExecutionState::removeObject(const std::string &name) {
+    auto &&objectsIter = objects.find(name);
+    if (objectsIter != objects.end()) {
+        objects.erase(objectsIter);
+    } else {
+        throw std::runtime_error("Can't remove not-existing object from executions state.");
+    }
+}
 bool ExecutionState::isReturning() {
     return retFlag;
 }

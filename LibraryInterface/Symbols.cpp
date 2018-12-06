@@ -6,14 +6,17 @@
 #include "../Exec/GrammarNode.h"
 #include "BuildIn.h"
 #include "../Exec/Reference.h"
+#include "../Exec/Collection.h"
 
 Symbols::Symbols() {
     Num *numPrototype = new Num;
     Reference *referencePrototype = new Reference;
     String *stringPrototype = new String;
+    Collection *collectionPrototype = new Collection;
     classFactory.addClass("Num", numPrototype);
     classFactory.addClass("Reference", referencePrototype);
     classFactory.addClass("String", stringPrototype);
+    classFactory.addClass("Collection", collectionPrototype);
 }
 Symbols::~Symbols() {
     for (auto &&i : externFunctions) {

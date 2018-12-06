@@ -36,6 +36,7 @@ public:
     void handleObject(const std::string &name, Object **object);
     void handleObjects(const Objects &newObjects, const std::list<std::unique_ptr<ArgumentPair>> &names);
     void addGroup(GroupDefinition &groupDefinition);
+    void removeObject(const std::string &name);
 
     bool isReturning();
     void setReturn(Object *object);
